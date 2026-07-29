@@ -2,6 +2,8 @@ package com.toneime.android;
 
 import static org.junit.Assert.assertEquals;
 
+import android.view.WindowManager;
+
 import org.junit.Test;
 
 public final class AppSettingsTest {
@@ -46,5 +48,15 @@ public final class AppSettingsTest {
         assertEquals(0, AppSettings.overlayHeightDp(0));
         assertEquals(150, AppSettings.overlayHeightDp(80));
         assertEquals(800, AppSettings.overlayHeightDp(900));
+    }
+
+    @Test
+    public void overlayDoesNotBlurOrBlockTouchesOutsideItsBounds() {
+        int flags = AccessibilityOverlayService.windowFlags();
+
+        assertEquals(
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                flags & WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL);
+        assertEquals(0, flags & WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
     }
 }

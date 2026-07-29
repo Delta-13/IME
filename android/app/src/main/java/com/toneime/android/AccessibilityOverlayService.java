@@ -22,6 +22,7 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.ListPopupWindow;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -49,6 +50,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
     private View adjustPanel;
     private SeekBar opacityControl;
     private TextView opacityValue;
+    private ListPopupWindow choicesPopup;
     private int politeness = 3;
     private int warmth = 3;
     private int directness = 3;
@@ -69,6 +71,12 @@ public final class AccessibilityOverlayService extends AccessibilityService {
             refreshOverlayLanguage();
         }
     };
+
+    static int windowFlags() {
+        return WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
+    }
 
     @Override
     @SuppressLint("InflateParams")
@@ -96,13 +104,8 @@ public final class AccessibilityOverlayService extends AccessibilityService {
                 width,
                 height,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                windowFlags(),
                 PixelFormat.TRANSLUCENT);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            windowParams.flags |= WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
-            windowParams.setBlurBehindRadius(dp(18));
-        }
         windowParams.gravity = Gravity.TOP | Gravity.START;
         windowParams.x = dp(10);
         windowParams.y = dp(80);
@@ -153,6 +156,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         generation++;
         handler.removeCallbacksAndMessages(null);
         executor.shutdownNow();
+        dismissChoicesPopup();
         if (overlay != null && windowManager != null) {
             windowManager.removeView(overlay);
         }
@@ -195,6 +199,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         observedSource = "";
         translatedSource = "";
         latestTranslation = "";
+        dismissChoicesPopup();
         windowManager.removeView(overlay);
         overlay = null;
         showOverlay();
@@ -221,6 +226,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         setupSpinner(scene, R.array.scene_names);
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private void setupSpinner(Spinner spinner, int valuesResource) {
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 spinner.getContext(),
@@ -228,6 +234,53 @@ public final class AccessibilityOverlayService extends AccessibilityService {
                 spinner.getResources().getStringArray(valuesResource));
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinner.setAdapter(adapter);
+        spinner.setOnTouchListener((view, event) -> {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                showChoicesPopup(spinner, adapter);
+                spinner.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_CLICKED);
+            }
+            return true;
+        });
+        spinner.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override
+            public boolean performAccessibilityAction(
+                    View host,
+                    int action,
+                    Bundle arguments) {
+                if (action == AccessibilityNodeInfo.ACTION_CLICK) {
+                    showChoicesPopup(spinner, adapter);
+                    return true;
+                }
+                return super.performAccessibilityAction(host, action, arguments);
+            }
+        });
+    }
+
+    private void showChoicesPopup(Spinner spinner, ArrayAdapter<String> adapter) {
+        dismissChoicesPopup();
+        ListPopupWindow popup = new ListPopupWindow(spinner.getContext());
+        popup.setAdapter(adapter);
+        popup.setAnchorView(spinner);
+        popup.setModal(false);
+        popup.setWidth(Math.max(spinner.getWidth(), dp(150)));
+        popup.setOnItemClickListener((parent, view, position, id) -> {
+            spinner.setSelection(position);
+            popup.dismiss();
+        });
+        popup.setOnDismissListener(() -> {
+            if (choicesPopup == popup) {
+                choicesPopup = null;
+            }
+        });
+        choicesPopup = popup;
+        popup.show();
+    }
+
+    private void dismissChoicesPopup() {
+        if (choicesPopup != null) {
+            choicesPopup.dismiss();
+            choicesPopup = null;
+        }
     }
 
     private void loadSettings() {
