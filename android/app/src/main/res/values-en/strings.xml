@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ToneIME</string>
+    <string name="process_text_label">Translate with ToneIME</string>
+    <string name="title">ToneIME Android</string>
+    <string name="subtitle">Relationship-aware multilingual translation · Review before copying or returning</string>
+    <string name="ui_language_label">Interface language</string>
+    <string name="source_language_label">Source language</string>
+    <string name="target_language_label">Target language</string>
+    <string name="language_arrow">→</string>
+    <string name="open_overlay_settings">Enable / manage live overlay</string>
+    <string name="overlay_privacy_note">When enabled, only the focused non-password input field is read. After about 0.9 seconds of inactivity, its text is sent to the configured translation API. Text is replaced only when you tap the translation and is never sent automatically.</string>
+    <string name="relation_label">Relationship</string>
+    <string name="scene_label">Conversation scene</string>
+    <string name="politeness_default">Politeness 3/5</string>
+    <string name="warmth_default">Warmth 3/5</string>
+    <string name="directness_default">Directness 3/5</string>
+    <string name="politeness_value">Politeness %1$d/5</string>
+    <string name="warmth_value">Warmth %1$d/5</string>
+    <string name="directness_value">Directness %1$d/5</string>
+    <string name="candidate_value">%1$s\n%2$s</string>
+    <string name="source_label">Source text</string>
+    <string name="source_hint">Enter text to translate, up to 800 characters</string>
+    <string name="translate">Generate translation</string>
+    <string name="status_ready">Waiting for input · Never sends automatically</string>
+    <string name="candidate_label">Choose a translation</string>
+    <string name="back_translation_label">Back-translation check</string>
+    <string name="warnings_label">Warnings</string>
+    <string name="copy">Copy selected translation</string>
+    <string name="return_to_app">Replace source and return</string>
+    <string name="share">Open share menu</string>
+    <string name="settings_label">API settings</string>
+    <string name="base_url_hint">Base URL, for example https://api.openai.com/v1</string>
+    <string name="model_hint">Model ID</string>
+    <string name="api_key_hint">API Key (encrypted with Android Keystore)</string>
+    <string name="save_settings">Save settings</string>
+    <string name="settings_saved">Settings saved</string>
+    <string name="error_api_key_save">Could not encrypt and save the API Key. Please try again.</string>
+    <string name="error_minimum_input">Enter at least 2 characters.</string>
+    <string name="error_https_required">The API address must use HTTPS.</string>
+    <string name="error_model_and_key_required">Enter a model ID and API Key.</string>
+    <string name="error_translation_failed">Translation failed. Please try again.</string>
+    <string name="status_translating">Generating a relationship-aware translation…</string>
+    <string name="status_complete">Translation ready · Review before copying or returning</string>
+    <string name="translation_copied">Translation copied. Return to the chat app and send it manually.</string>
+    <string name="share_translation">Share translation</string>
+    <string name="recommended">Recommended</string>
+    <string name="alternative">Alternative</string>
+    <string name="privacy_note">Source text is sent only after you tap “Generate translation”; requests use store:false. The app does not save source text or translations and never sends them to a chat app automatically.</string>
+    <string name="not_available">—</string>
+    <string name="overlay_service_label">ToneIME live translation overlay</string>
+    <string name="overlay_service_description">Monitors the focused non-password input field and generates a translation after typing stops. It replaces text only when you tap the translation and the source has not changed.</string>
+    <string name="overlay_drag">Move overlay</string>
+    <string name="overlay_drag_symbol">⁙</string>
+    <string name="overlay_close">Stop overlay service</string>
+    <string name="overlay_close_symbol">×</string>
+    <string name="overlay_politeness">Politeness %1$d/5, tap to change</string>
+    <string name="overlay_warmth">Warmth %1$d/5, tap to change</string>
+    <string name="overlay_directness">Directness %1$d/5, tap to change</string>
+    <string name="overlay_level_three">③</string>
+    <string name="overlay_candidate_waiting">The translation will appear here</string>
+    <string name="overlay_status_waiting">Waiting for the current input field · Never sends automatically</string>
+    <string name="overlay_status_typing">Input detected. Translation starts after you pause…</string>
+    <string name="overlay_status_translating">Translating…</string>
+    <string name="overlay_status_missing_api">Save an HTTPS API, model, and API Key on the ToneIME main screen first</string>
+    <string name="overlay_status_changed">The source changed, so replacement was canceled</string>
+    <string name="overlay_status_replaced">Replaced. Review it and send manually.</string>
+    <string name="overlay_status_replace_failed">The current input field rejected replacement</string>
+
+    <string-array name="ui_language_names">
+        <item>中文</item>
+        <item>日本語</item>
+        <item>English</item>
+    </string-array>
+    <string-array name="translation_language_names">
+        <item>Chinese</item>
+        <item>Japanese</item>
+        <item>English</item>
+        <item>Korean</item>
+        <item>German</item>
+    </string-array>
+    <string-array name="relation_names">
+        <item>Elder</item>
+        <item>Manager</item>
+        <item>Peer</item>
+        <item>Friend</item>
+        <item>Close friend</item>
+        <item>Partner</item>
+    </string-array>
+    <string-array name="scene_names">
+        <item>Auto</item>
+        <item>Chat</item>
+        <item>Request</item>
+        <item>Apology</item>
+        <item>Thanks</item>
+        <item>Decline</item>
+        <item>Care</item>
+    </string-array>
+</resources>

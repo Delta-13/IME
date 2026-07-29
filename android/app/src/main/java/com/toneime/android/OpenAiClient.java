@@ -1,0 +1,95 @@
+package com.toneime.android;
+
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.SocketTimeoutException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+
+import javax.net.ssl.HttpsURLConnection;
+
+final class OpenAiClient {
+    private static final int TIMEOUT_MS = 45_000;
+    private static final int MAX_RESPONSE_BYTES = 1_048_576;
+
+    TranslationProtocol.Result translate(
+            String baseUrl,
+            String model,
+            String apiKey,
+            TranslationProtocol.Request request) throws Exception {
+        URL endpoint = new URL(baseUrl.replaceAll("/+$", "") + "/chat/completions");
+        if (!"https".equalsIgnoreCase(endpoint.getProtocol())) {
+            throw new IllegalArgumentException("Android 端只允许 HTTPS API 地址，以免泄露 API Key。");
+        }
+
+        byte[] requestBytes = TranslationProtocol.buildPayload(model, request)
+                .toString()
+                .getBytes(StandardCharsets.UTF_8);
+        HttpsURLConnection connection = (HttpsURLConnection) endpoint.openConnection();
+        try {
+            connection.setRequestMethod("POST");
+            connection.setConnectTimeout(TIMEOUT_MS);
+            connection.setReadTimeout(TIMEOUT_MS);
+            connection.setDoOutput(true);
+            connection.setFixedLengthStreamingMode(requestBytes.length);
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            if (!apiKey.trim().isEmpty()) {
+                connection.setRequestProperty("Authorization", "Bearer " + apiKey.trim());
+            }
+
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(requestBytes);
+            }
+
+            int status = connection.getResponseCode();
+            InputStream stream = status >= 200 && status < 300
+                    ? connection.getInputStream()
+                    : connection.getErrorStream();
+            String body = stream == null ? "" : readLimited(stream);
+            if (status < 200 || status >= 300) {
+                throw new IOException("模型请求失败（" + status + "）：" + providerError(body));
+            }
+
+            return TranslationProtocol.parseApiResponse(body);
+        } catch (SocketTimeoutException exception) {
+            throw new IOException("模型请求超时，请重试。", exception);
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private static String readLimited(InputStream stream) throws IOException {
+        try (InputStream input = stream; ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int total = 0;
+            int read;
+            while ((read = input.read(buffer)) >= 0) {
+                total += read;
+                if (total > MAX_RESPONSE_BYTES) {
+                    throw new IOException("模型响应超过 1 MB。");
+                }
+                output.write(buffer, 0, read);
+            }
+            return new String(output.toByteArray(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static String providerError(String body) {
+        try {
+            JSONObject error = new JSONObject(body).optJSONObject("error");
+            String message = error == null ? "" : error.optString("message", "");
+            if (message.trim().isEmpty()) {
+                return "未提供错误信息";
+            }
+            String compact = message.replaceAll("\\s+", " ").trim();
+            return compact.length() <= 180 ? compact : compact.substring(0, 180) + "…";
+        } catch (Exception ignored) {
+            return "未提供可解析的错误信息";
+        }
+    }
+}

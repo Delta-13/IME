@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ToneIME</string>
+    <string name="process_text_label">用 ToneIME 翻译</string>
+    <string name="title">ToneIME Android</string>
+    <string name="subtitle">多语言关系语气翻译 · 预览确认后再复制或返回</string>
+    <string name="ui_language_label">界面语言</string>
+    <string name="source_language_label">源语言</string>
+    <string name="target_language_label">目标语言</string>
+    <string name="language_arrow">→</string>
+    <string name="open_overlay_settings">开启 / 管理实时浮窗</string>
+    <string name="overlay_privacy_note">开启后仅读取当前获得焦点的非密码输入框；停顿约 0.9 秒后发送给已配置的翻译 API。必须点击译文才会替换，不会自动发送。</string>
+    <string name="relation_label">关系语气</string>
+    <string name="scene_label">对话场景</string>
+    <string name="politeness_default">礼貌程度 3/5</string>
+    <string name="warmth_default">亲密温度 3/5</string>
+    <string name="directness_default">表达直接度 3/5</string>
+    <string name="politeness_value">礼貌程度 %1$d/5</string>
+    <string name="warmth_value">亲密温度 %1$d/5</string>
+    <string name="directness_value">表达直接度 %1$d/5</string>
+    <string name="candidate_value">%1$s\n%2$s</string>
+    <string name="source_label">输入原文</string>
+    <string name="source_hint">输入要翻译的文字，最多 800 字</string>
+    <string name="translate">生成译文</string>
+    <string name="status_ready">等待输入 · 不会自动发送</string>
+    <string name="candidate_label">选择译文</string>
+    <string name="back_translation_label">回译检查</string>
+    <string name="warnings_label">提示</string>
+    <string name="copy">复制所选</string>
+    <string name="return_to_app">替换原文并返回</string>
+    <string name="share">打开分享菜单</string>
+    <string name="settings_label">API 设置</string>
+    <string name="base_url_hint">Base URL，例如 https://api.openai.com/v1</string>
+    <string name="model_hint">模型 ID</string>
+    <string name="api_key_hint">API Key（使用 Android Keystore 加密）</string>
+    <string name="save_settings">保存设置</string>
+    <string name="settings_saved">设置已保存</string>
+    <string name="error_api_key_save">无法加密保存 API Key，请重试。</string>
+    <string name="error_minimum_input">请输入至少 2 个字符。</string>
+    <string name="error_https_required">API 地址必须使用 HTTPS。</string>
+    <string name="error_model_and_key_required">请填写模型 ID 和 API Key。</string>
+    <string name="error_translation_failed">翻译失败，请重试。</string>
+    <string name="status_translating">正在生成关系语气译文…</string>
+    <string name="status_complete">译文已生成 · 请确认后复制或返回</string>
+    <string name="translation_copied">译文已复制；请回到聊天应用手动发送</string>
+    <string name="share_translation">分享译文</string>
+    <string name="recommended">推荐</string>
+    <string name="alternative">候选</string>
+    <string name="privacy_note">原文只在点击“生成译文”后发送；请求使用 store:false。应用不保存原文或译文，也不会自动发送到 LINE。</string>
+    <string name="not_available">—</string>
+    <string name="overlay_service_label">ToneIME 实时翻译浮窗</string>
+    <string name="overlay_service_description">监测当前非密码输入框，在停顿后生成译文；仅在用户点击译文且原文未变化时替换。</string>
+    <string name="overlay_drag">拖动浮窗</string>
+    <string name="overlay_drag_symbol">⁙</string>
+    <string name="overlay_close">关闭浮窗服务</string>
+    <string name="overlay_close_symbol">×</string>
+    <string name="overlay_politeness">礼貌程度 %1$d/5，点击切换</string>
+    <string name="overlay_warmth">亲密温度 %1$d/5，点击切换</string>
+    <string name="overlay_directness">表达直接度 %1$d/5，点击切换</string>
+    <string name="overlay_level_three">③</string>
+    <string name="overlay_candidate_waiting">译文会显示在这里</string>
+    <string name="overlay_status_waiting">等待当前输入框 · 不会自动发送</string>
+    <string name="overlay_status_typing">检测到输入，停顿后翻译…</string>
+    <string name="overlay_status_translating">正在翻译…</string>
+    <string name="overlay_status_missing_api">请先在 ToneIME 主页面保存 HTTPS API、模型和 API Key</string>
+    <string name="overlay_status_changed">原文已变化，已取消替换</string>
+    <string name="overlay_status_replaced">已替换；请确认后手动发送</string>
+    <string name="overlay_status_replace_failed">当前输入框拒绝替换</string>
+
+    <string-array name="ui_language_names">
+        <item>中文</item>
+        <item>日本語</item>
+        <item>English</item>
+    </string-array>
+    <string-array name="translation_language_names">
+        <item>中文</item>
+        <item>日文</item>
+        <item>英文</item>
+        <item>韩文</item>
+        <item>德文</item>
+    </string-array>
+    <string-array name="relation_names">
+        <item>长辈</item>
+        <item>领导</item>
+        <item>平辈</item>
+        <item>朋友</item>
+        <item>好朋友</item>
+        <item>情侣</item>
+    </string-array>
+    <string-array name="scene_names">
+        <item>自动</item>
+        <item>闲聊</item>
+        <item>请求</item>
+        <item>道歉</item>
+        <item>感谢</item>
+        <item>拒绝</item>
+        <item>关心</item>
+    </string-array>
+</resources>

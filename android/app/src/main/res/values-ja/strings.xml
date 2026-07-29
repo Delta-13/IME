@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ToneIME</string>
+    <string name="process_text_label">ToneIMEで翻訳</string>
+    <string name="title">ToneIME Android</string>
+    <string name="subtitle">多言語・関係性トーン翻訳 · 確認してからコピーまたは戻る</string>
+    <string name="ui_language_label">表示言語</string>
+    <string name="source_language_label">翻訳元の言語</string>
+    <string name="target_language_label">翻訳先の言語</string>
+    <string name="language_arrow">→</string>
+    <string name="open_overlay_settings">リアルタイムフローティング表示を設定</string>
+    <string name="overlay_privacy_note">有効にすると、現在フォーカスされているパスワード以外の入力欄だけを読み取ります。約0.9秒入力が止まると、設定済みの翻訳APIへ送信します。訳文をタップした場合のみ置換し、自動送信はしません。</string>
+    <string name="relation_label">相手との関係</string>
+    <string name="scene_label">会話シーン</string>
+    <string name="politeness_default">丁寧さ 3/5</string>
+    <string name="warmth_default">親密さ 3/5</string>
+    <string name="directness_default">直接さ 3/5</string>
+    <string name="politeness_value">丁寧さ %1$d/5</string>
+    <string name="warmth_value">親密さ %1$d/5</string>
+    <string name="directness_value">直接さ %1$d/5</string>
+    <string name="candidate_value">%1$s\n%2$s</string>
+    <string name="source_label">原文</string>
+    <string name="source_hint">翻訳する文章を入力（最大800文字）</string>
+    <string name="translate">訳文を生成</string>
+    <string name="status_ready">入力待ち · 自動送信はしません</string>
+    <string name="candidate_label">訳文を選択</string>
+    <string name="back_translation_label">逆翻訳チェック</string>
+    <string name="warnings_label">注意</string>
+    <string name="copy">選択した訳文をコピー</string>
+    <string name="return_to_app">原文を置換して戻る</string>
+    <string name="share">共有メニューを開く</string>
+    <string name="settings_label">API設定</string>
+    <string name="base_url_hint">Base URL（例：https://api.openai.com/v1）</string>
+    <string name="model_hint">モデルID</string>
+    <string name="api_key_hint">API Key（Android Keystoreで暗号化）</string>
+    <string name="save_settings">設定を保存</string>
+    <string name="settings_saved">設定を保存しました</string>
+    <string name="error_api_key_save">API Keyを暗号化して保存できませんでした。もう一度お試しください。</string>
+    <string name="error_minimum_input">2文字以上入力してください。</string>
+    <string name="error_https_required">APIアドレスにはHTTPSが必要です。</string>
+    <string name="error_model_and_key_required">モデルIDとAPI Keyを入力してください。</string>
+    <string name="error_translation_failed">翻訳に失敗しました。もう一度お試しください。</string>
+    <string name="status_translating">関係性に合わせた訳文を生成しています…</string>
+    <string name="status_complete">訳文を生成しました · 確認してからコピーまたは戻ってください</string>
+    <string name="translation_copied">訳文をコピーしました。チャットアプリに戻って手動で送信してください</string>
+    <string name="share_translation">訳文を共有</string>
+    <string name="recommended">おすすめ</string>
+    <string name="alternative">候補</string>
+    <string name="privacy_note">原文は「訳文を生成」をタップした後だけ送信され、リクエストではstore:falseを使用します。原文や訳文は保存せず、チャットアプリへ自動送信しません。</string>
+    <string name="not_available">—</string>
+    <string name="overlay_service_label">ToneIME リアルタイム翻訳</string>
+    <string name="overlay_service_description">現在のパスワード以外の入力欄を監視し、入力が止まると訳文を生成します。原文が変わっていない場合に、ユーザーが訳文をタップしたときだけ置換します。</string>
+    <string name="overlay_drag">フローティング表示を移動</string>
+    <string name="overlay_drag_symbol">⁙</string>
+    <string name="overlay_close">フローティング翻訳を停止</string>
+    <string name="overlay_close_symbol">×</string>
+    <string name="overlay_politeness">丁寧さ %1$d/5、タップして変更</string>
+    <string name="overlay_warmth">親密さ %1$d/5、タップして変更</string>
+    <string name="overlay_directness">直接さ %1$d/5、タップして変更</string>
+    <string name="overlay_level_three">③</string>
+    <string name="overlay_candidate_waiting">訳文はここに表示されます</string>
+    <string name="overlay_status_waiting">現在の入力欄を待機中 · 自動送信はしません</string>
+    <string name="overlay_status_typing">入力を検出しました。停止後に翻訳します…</string>
+    <string name="overlay_status_translating">翻訳しています…</string>
+    <string name="overlay_status_missing_api">ToneIMEのメイン画面でHTTPS API、モデル、API Keyを保存してください</string>
+    <string name="overlay_status_changed">原文が変更されたため、置換をキャンセルしました</string>
+    <string name="overlay_status_replaced">置換しました。確認してから手動で送信してください</string>
+    <string name="overlay_status_replace_failed">現在の入力欄を置換できませんでした</string>
+
+    <string-array name="ui_language_names">
+        <item>中文</item>
+        <item>日本語</item>
+        <item>English</item>
+    </string-array>
+    <string-array name="translation_language_names">
+        <item>中国語</item>
+        <item>日本語</item>
+        <item>英語</item>
+        <item>韓国語</item>
+        <item>ドイツ語</item>
+    </string-array>
+    <string-array name="relation_names">
+        <item>年長者</item>
+        <item>上司</item>
+        <item>同輩</item>
+        <item>友人</item>
+        <item>親友</item>
+        <item>恋人</item>
+    </string-array>
+    <string-array name="scene_names">
+        <item>自動</item>
+        <item>雑談</item>
+        <item>依頼</item>
+        <item>謝罪</item>
+        <item>感謝</item>
+        <item>断り</item>
+        <item>気遣い</item>
+    </string-array>
+</resources>
