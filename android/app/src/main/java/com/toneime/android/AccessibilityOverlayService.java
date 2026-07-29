@@ -22,6 +22,7 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 
@@ -45,9 +46,13 @@ public final class AccessibilityOverlayService extends AccessibilityService {
     private TextView warmthControl;
     private TextView directnessControl;
     private TextView candidate;
+    private View adjustPanel;
+    private SeekBar opacityControl;
+    private TextView opacityValue;
     private int politeness = 3;
     private int warmth = 3;
     private int directness = 3;
+    private int overlayOpacity = AppSettings.OVERLAY_OPACITY_DEFAULT;
     private Runnable pendingTranslation;
     private String observedSource = "";
     private String translatedSource = "";
@@ -74,13 +79,30 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         }
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        SharedPreferences preferences = AppSettings.preferences(this);
+        int displayWidth = getResources().getDisplayMetrics().widthPixels;
+        int displayHeight = getResources().getDisplayMetrics().heightPixels;
+        int width = Math.min(
+                dp(AppSettings.overlayWidthDp(preferences.getInt(
+                        AppSettings.OVERLAY_WIDTH_DP,
+                        AppSettings.OVERLAY_WIDTH_DEFAULT_DP))),
+                Math.max(dp(220), displayWidth - dp(16)));
+        int savedHeightDp = AppSettings.overlayHeightDp(
+                preferences.getInt(AppSettings.OVERLAY_HEIGHT_DP, 0));
+        int height = savedHeightDp == 0
+                ? WindowManager.LayoutParams.WRAP_CONTENT
+                : Math.min(dp(savedHeightDp), Math.max(dp(150), displayHeight - dp(32)));
         windowParams = new WindowManager.LayoutParams(
-                dp(320),
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                width,
+                height,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            windowParams.flags |= WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
+            windowParams.setBlurBehindRadius(dp(18));
+        }
         windowParams.gravity = Gravity.TOP | Gravity.START;
         windowParams.x = dp(10);
         windowParams.y = dp(80);
@@ -187,6 +209,9 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         warmthControl = overlay.findViewById(R.id.overlay_warmth_control);
         directnessControl = overlay.findViewById(R.id.overlay_directness_control);
         candidate = overlay.findViewById(R.id.overlay_candidate);
+        adjustPanel = overlay.findViewById(R.id.overlay_adjust_panel);
+        opacityControl = overlay.findViewById(R.id.overlay_opacity);
+        opacityValue = overlay.findViewById(R.id.overlay_opacity_value);
     }
 
     private void setupChoices() {
@@ -219,6 +244,11 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         politeness = clamp(preferences.getInt("politeness", 3), 1, 5);
         warmth = clamp(preferences.getInt("warmth", 3), 1, 5);
         directness = clamp(preferences.getInt("directness", 3), 1, 5);
+        overlayOpacity = AppSettings.overlayOpacity(preferences.getInt(
+                AppSettings.OVERLAY_OPACITY,
+                AppSettings.OVERLAY_OPACITY_DEFAULT));
+        opacityControl.setProgress(overlayOpacity);
+        applyOverlayOpacity();
         previousSourceLanguage =
                 selected(sourceLanguage, AppSettings.TRANSLATION_LANGUAGES, "zh");
         previousTargetLanguage =
@@ -262,7 +292,36 @@ public final class AccessibilityOverlayService extends AccessibilityService {
 
         candidate.setOnClickListener(view -> replaceCurrentInput());
         overlay.findViewById(R.id.overlay_close).setOnClickListener(view -> disableSelf());
+        overlay.findViewById(R.id.overlay_adjust).setOnClickListener(view -> {
+            adjustPanel.setVisibility(
+                    adjustPanel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+            overlay.requestLayout();
+            windowManager.updateViewLayout(overlay, windowParams);
+        });
+        opacityControl.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(
+                    SeekBar seekBar,
+                    int progress,
+                    boolean fromUser) {
+                overlayOpacity = AppSettings.overlayOpacity(progress);
+                applyOverlayOpacity();
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                AppSettings.preferences(AccessibilityOverlayService.this)
+                        .edit()
+                        .putInt(AppSettings.OVERLAY_OPACITY, overlayOpacity)
+                        .apply();
+            }
+        });
         setupDragging(overlay.findViewById(R.id.overlay_drag_handle));
+        setupResizing(overlay.findViewById(R.id.overlay_resize_handle));
     }
 
     private AdapterView.OnItemSelectedListener languageListener(boolean sourceChanged) {
@@ -341,6 +400,94 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         });
     }
 
+    private void setupResizing(View handle) {
+        handle.setOnTouchListener(new View.OnTouchListener() {
+            private float downX;
+            private float downY;
+            private int startWidth;
+            private int startHeight;
+            private boolean resized;
+
+            @Override
+            public boolean onTouch(View view, MotionEvent event) {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        downX = event.getRawX();
+                        downY = event.getRawY();
+                        startWidth = overlay.getWidth();
+                        startHeight = overlay.getHeight();
+                        resized = false;
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        resized = true;
+                        int minimumWidth = dp(AppSettings.OVERLAY_WIDTH_MIN_DP);
+                        int minimumHeight = dp(AppSettings.OVERLAY_HEIGHT_MIN_DP);
+                        int maximumWidth = Math.max(
+                                minimumWidth,
+                                getResources().getDisplayMetrics().widthPixels
+                                        - windowParams.x
+                                        - dp(8));
+                        int maximumHeight = Math.max(
+                                minimumHeight,
+                                getResources().getDisplayMetrics().heightPixels
+                                        - windowParams.y
+                                        - dp(8));
+                        windowParams.width = clamp(
+                                startWidth + Math.round(event.getRawX() - downX),
+                                minimumWidth,
+                                maximumWidth);
+                        windowParams.height = clamp(
+                                startHeight + Math.round(event.getRawY() - downY),
+                                minimumHeight,
+                                maximumHeight);
+                        windowManager.updateViewLayout(overlay, windowParams);
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        if (resized) {
+                            persistOverlaySize();
+                        }
+                        view.performClick();
+                        return true;
+                    case MotionEvent.ACTION_CANCEL:
+                        if (resized) {
+                            persistOverlaySize();
+                        }
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+        });
+    }
+
+    private void persistOverlaySize() {
+        float density = getResources().getDisplayMetrics().density;
+        int width = windowParams.width > 0 ? windowParams.width : overlay.getWidth();
+        int height = windowParams.height > 0 ? windowParams.height : overlay.getHeight();
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        AppSettings.preferences(this)
+                .edit()
+                .putInt(
+                        AppSettings.OVERLAY_WIDTH_DP,
+                        Math.round(width / density))
+                .putInt(
+                        AppSettings.OVERLAY_HEIGHT_DP,
+                        Math.round(height / density))
+                .apply();
+    }
+
+    private void applyOverlayOpacity() {
+        if (overlay == null) {
+            return;
+        }
+        overlay.setAlpha(overlayOpacity / 100f);
+        opacityValue.setText(opacityValue.getContext().getString(
+                R.string.overlay_opacity_value,
+                overlayOpacity));
+    }
+
     private void observe(String source) {
         if (source.equals(observedSource)) {
             return;
@@ -390,8 +537,8 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         }
 
         SharedPreferences preferences = AppSettings.preferences(this);
-        String endpoint = preferences.getString("base_url", MainActivity.DEFAULT_BASE_URL);
-        String model = preferences.getString("model", MainActivity.DEFAULT_MODEL);
+        String endpoint = preferences.getString("base_url", AppSettings.DEFAULT_BASE_URL);
+        String model = preferences.getString("model", AppSettings.DEFAULT_MODEL);
         String apiKey = SecurePrefs.loadApiKey(this);
         if (endpoint == null
                 || !endpoint.startsWith("https://")

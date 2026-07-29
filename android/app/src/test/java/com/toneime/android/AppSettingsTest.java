@@ -34,4 +34,17 @@ public final class AppSettingsTest {
         assertEquals("ja", targetChanged.source);
         assertEquals("zh", targetChanged.target);
     }
+
+    @Test
+    public void overlayDisplaySettingsStayWithinUsableBounds() {
+        assertEquals(35, AppSettings.overlayOpacity(0));
+        assertEquals(90, AppSettings.overlayOpacity(90));
+        assertEquals(100, AppSettings.overlayOpacity(140));
+        assertEquals(260, AppSettings.overlayWidthDp(120));
+        assertEquals(420, AppSettings.overlayWidthDp(420));
+        assertEquals(600, AppSettings.overlayWidthDp(900));
+        assertEquals(0, AppSettings.overlayHeightDp(0));
+        assertEquals(150, AppSettings.overlayHeightDp(80));
+        assertEquals(800, AppSettings.overlayHeightDp(900));
+    }
 }

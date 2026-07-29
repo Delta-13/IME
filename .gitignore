@@ -7,6 +7,11 @@ publish/
 .tooling/
 android/.gradle/
 android/.idea/
+android/.kotlin/
+android/**/.cxx/
 android/local.properties
 android/**/build/
 android/dist/
+node_modules/
+.metro-health-check*
+npm-debug.log*

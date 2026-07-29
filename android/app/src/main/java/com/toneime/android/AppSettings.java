@@ -7,8 +7,18 @@ import android.content.res.Configuration;
 import java.util.Locale;
 
 final class AppSettings {
+    static final String DEFAULT_BASE_URL = "https://api.openai.com/v1";
+    static final String DEFAULT_MODEL = "gpt-5.6-luna";
     static final String ACTION_UI_LANGUAGE_CHANGED =
             "com.toneime.android.UI_LANGUAGE_CHANGED";
+    static final String OVERLAY_OPACITY = "overlay_opacity";
+    static final String OVERLAY_WIDTH_DP = "overlay_width_dp";
+    static final String OVERLAY_HEIGHT_DP = "overlay_height_dp";
+    static final int OVERLAY_OPACITY_MIN = 35;
+    static final int OVERLAY_OPACITY_DEFAULT = 90;
+    static final int OVERLAY_WIDTH_MIN_DP = 260;
+    static final int OVERLAY_WIDTH_DEFAULT_DP = 320;
+    static final int OVERLAY_HEIGHT_MIN_DP = 150;
     static final String[] UI_LANGUAGES = {"zh", "ja", "en"};
     static final String[] TRANSLATION_LANGUAGES = {"zh", "ja", "en", "ko", "de"};
     static final String[] RELATIONS = {
@@ -136,6 +146,18 @@ final class AppSettings {
         };
     }
 
+    static int overlayOpacity(int value) {
+        return clamp(value, OVERLAY_OPACITY_MIN, 100);
+    }
+
+    static int overlayWidthDp(int value) {
+        return clamp(value, OVERLAY_WIDTH_MIN_DP, 600);
+    }
+
+    static int overlayHeightDp(int value) {
+        return value <= 0 ? 0 : clamp(value, OVERLAY_HEIGHT_MIN_DP, 800);
+    }
+
     static int indexOf(String[] values, String selected) {
         for (int i = 0; i < values.length; i++) {
             if (values[i].equals(selected)) {
@@ -149,7 +171,15 @@ final class AppSettings {
         return position >= 0 && position < values.length ? values[position] : fallback;
     }
 
-    private static String normalized(String value, String[] allowed, String fallback) {
+    static boolean isAllowed(String value, String[] allowed) {
+        return contains(allowed, value);
+    }
+
+    static int level(int value) {
+        return clamp(value, 1, 5);
+    }
+
+    static String normalized(String value, String[] allowed, String fallback) {
         return contains(allowed, value) ? value : fallback;
     }
 
@@ -160,6 +190,10 @@ final class AppSettings {
             }
         }
         return false;
+    }
+
+    private static int clamp(int value, int minimum, int maximum) {
+        return Math.max(minimum, Math.min(maximum, value));
     }
 
     static final class LanguagePair {
