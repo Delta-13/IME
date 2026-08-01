@@ -2,6 +2,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   AppState,
+  Keyboard,
   Modal,
   NativeModules,
   Pressable,
@@ -65,6 +66,8 @@ type ToneImeApi = {
 };
 
 const ToneIme = NativeModules.ToneIme as ToneImeApi;
+
+const HEADER_HEIGHT = 74 + (StatusBar.currentHeight ?? 0);
 
 const DEFAULTS: SettingsState = {
   uiLanguage: 'zh',
@@ -389,6 +392,9 @@ export default function App() {
   const [result, setResult] = useState<TranslationResult | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState(0);
   const loaded = useRef(false);
+  const scrollView = useRef<ScrollView>(null);
+  const sourceInput = useRef<TextInput>(null);
+  const sourceInputFocused = useRef(false);
   const t = copy[settings.uiLanguage];
   const selectedText = result?.candidates[selectedCandidate]?.text ?? '';
 
@@ -446,6 +452,25 @@ export default function App() {
   const saveQuietly = (next: SettingsState) => {
     void save(next).catch(() => undefined);
   };
+
+  const scrollSourceInputIntoView = () => {
+    if (!sourceInputFocused.current || sourceInput.current == null) {
+      return;
+    }
+    scrollView.current?.scrollResponderScrollNativeHandleToKeyboard(
+      sourceInput.current,
+      HEADER_HEIGHT + 12,
+      true,
+    );
+  };
+
+  useEffect(() => {
+    const subscription = Keyboard.addListener(
+      'keyboardDidShow',
+      scrollSourceInputIntoView,
+    );
+    return () => subscription.remove();
+  }, []);
 
   const updateSetting = <K extends keyof SettingsState>(
     key: K,
@@ -613,6 +638,7 @@ export default function App() {
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        ref={scrollView}
         showsVerticalScrollIndicator={false}>
         <View style={styles.contentInner}>
           <Text style={styles.kicker}>01 · TRANSLATE</Text>
@@ -673,14 +699,22 @@ export default function App() {
                 accessibilityLabel={t.original}
                 maxLength={800}
                 multiline
+                onBlur={() => {
+                  sourceInputFocused.current = false;
+                }}
                 onChangeText={text => {
                   setSource(text);
                   if (result) {
                     clearResult();
                   }
                 }}
+                onFocus={() => {
+                  sourceInputFocused.current = true;
+                  scrollSourceInputIntoView();
+                }}
                 placeholder={t.inputHint}
                 placeholderTextColor="#A0A1AF"
+                ref={sourceInput}
                 style={styles.sourceInput}
                 testID="source-input"
                 textAlignVertical="top"
@@ -945,7 +979,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    minHeight: 74 + (StatusBar.currentHeight ?? 0),
+    minHeight: HEADER_HEIGHT,
     paddingHorizontal: 18,
     paddingTop: StatusBar.currentHeight ?? 0,
   },
