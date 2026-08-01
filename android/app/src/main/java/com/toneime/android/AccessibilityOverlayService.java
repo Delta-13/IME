@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -17,6 +18,7 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewTreeObserver;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -31,6 +33,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class AccessibilityOverlayService extends AccessibilityService {
+    private static final int MIN_KEYBOARD_HEIGHT_DP = 120;
     private static final long DEBOUNCE_MS = 900;
     private static final String[] LEVELS = {"①", "②", "③", "④", "⑤"};
 
@@ -65,6 +68,10 @@ public final class AccessibilityOverlayService extends AccessibilityService {
     private boolean receiverRegistered;
     private String previousSourceLanguage;
     private String previousTargetLanguage;
+    private int manualOverlayY;
+    private int lastKeyboardHeight = Integer.MIN_VALUE;
+    private final ViewTreeObserver.OnGlobalLayoutListener overlayImeAvoidanceListener =
+            this::adjustOverlayForIme;
     private final BroadcastReceiver languageReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -106,9 +113,11 @@ public final class AccessibilityOverlayService extends AccessibilityService {
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 windowFlags(),
                 PixelFormat.TRANSLUCENT);
+        windowParams.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN;
         windowParams.gravity = Gravity.TOP | Gravity.START;
         windowParams.x = dp(10);
         windowParams.y = dp(80);
+        manualOverlayY = windowParams.y;
         registerLanguageReceiver();
         showOverlay();
     }
@@ -157,6 +166,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         handler.removeCallbacksAndMessages(null);
         executor.shutdownNow();
         dismissChoicesPopup();
+        removeOverlayImeAvoidanceListener();
         if (overlay != null && windowManager != null) {
             windowManager.removeView(overlay);
         }
@@ -187,7 +197,12 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         setupChoices();
         loadSettings();
         setupListeners();
+        if (manualOverlayY <= 0) {
+            manualOverlayY = windowParams.y;
+        }
         windowManager.addView(overlay, windowParams);
+        overlay.getViewTreeObserver().addOnGlobalLayoutListener(overlayImeAvoidanceListener);
+        adjustOverlayForIme();
     }
 
     private void refreshOverlayLanguage() {
@@ -200,6 +215,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         translatedSource = "";
         latestTranslation = "";
         dismissChoicesPopup();
+        removeOverlayImeAvoidanceListener();
         windowManager.removeView(overlay);
         overlay = null;
         showOverlay();
@@ -262,6 +278,9 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         popup.setAdapter(adapter);
         popup.setAnchorView(spinner);
         popup.setModal(false);
+        popup.setBackgroundDrawable(
+                spinner.getContext().getDrawable(R.drawable.bg_overlay_dropdown));
+        popup.setVerticalOffset(dp(6));
         popup.setWidth(Math.max(spinner.getWidth(), dp(150)));
         popup.setOnItemClickListener((parent, view, position, id) -> {
             spinner.setSelection(position);
@@ -350,6 +369,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
                     adjustPanel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
             overlay.requestLayout();
             windowManager.updateViewLayout(overlay, windowParams);
+            adjustOverlayForIme();
         });
         opacityControl.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -444,8 +464,14 @@ public final class AccessibilityOverlayService extends AccessibilityService {
                         windowManager.updateViewLayout(overlay, windowParams);
                         return true;
                     case MotionEvent.ACTION_UP:
+                        manualOverlayY = windowParams.y;
+                        adjustOverlayForIme();
                         view.performClick();
                         return true;
+                    case MotionEvent.ACTION_CANCEL:
+                        manualOverlayY = windowParams.y;
+                        adjustOverlayForIme();
+                        return false;
                     default:
                         return false;
                 }
@@ -499,12 +525,14 @@ public final class AccessibilityOverlayService extends AccessibilityService {
                         if (resized) {
                             persistOverlaySize();
                         }
+                        adjustOverlayForIme();
                         view.performClick();
                         return true;
                     case MotionEvent.ACTION_CANCEL:
                         if (resized) {
                             persistOverlaySize();
                         }
+                        adjustOverlayForIme();
                         return true;
                     default:
                         return false;
@@ -539,6 +567,67 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         opacityValue.setText(opacityValue.getContext().getString(
                 R.string.overlay_opacity_value,
                 overlayOpacity));
+    }
+
+    private void adjustOverlayForIme() {
+        if (overlay == null || windowManager == null) {
+            return;
+        }
+
+        int overlayHeight = overlay.getHeight();
+        if (overlayHeight <= 0) {
+            return;
+        }
+
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        int keyboardHeight = estimateKeyboardHeight(screenHeight);
+        boolean imeVisible = keyboardHeight > dp(MIN_KEYBOARD_HEIGHT_DP);
+
+        if (!imeVisible) {
+            if (lastKeyboardHeight <= dp(MIN_KEYBOARD_HEIGHT_DP)) {
+                return;
+            }
+            setOverlayY(manualOverlayY);
+            lastKeyboardHeight = keyboardHeight;
+            return;
+        }
+
+        lastKeyboardHeight = keyboardHeight;
+        int safeBottom = Math.max(0, screenHeight - keyboardHeight);
+        int maxY = Math.max(0, safeBottom - overlayHeight - dp(8));
+        int targetY = Math.min(manualOverlayY, maxY);
+        setOverlayY(targetY);
+    }
+
+    private int estimateKeyboardHeight(int screenHeight) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            android.view.WindowInsets insets = overlay.getRootWindowInsets();
+            if (insets != null) {
+                return insets.getInsets(android.view.WindowInsets.Type.ime()).bottom;
+            }
+        }
+        Rect visibleFrame = new Rect();
+        overlay.getRootView().getWindowVisibleDisplayFrame(visibleFrame);
+        return Math.max(0, screenHeight - visibleFrame.bottom);
+    }
+
+    private void setOverlayY(int y) {
+        int maxY = Math.max(
+                0,
+                getResources().getDisplayMetrics().heightPixels - overlay.getHeight());
+        int clampedY = clamp(y, 0, maxY);
+        if (windowParams.y == clampedY) {
+            return;
+        }
+        windowParams.y = clampedY;
+        windowManager.updateViewLayout(overlay, windowParams);
+    }
+
+    private void removeOverlayImeAvoidanceListener() {
+        if (overlay == null) {
+            return;
+        }
+        overlay.getViewTreeObserver().removeOnGlobalLayoutListener(overlayImeAvoidanceListener);
     }
 
     private void observe(String source) {
