@@ -387,6 +387,7 @@ export default function App() {
   const [canReturnToApp, setCanReturnToApp] = useState(false);
   const [apiExpanded, setApiExpanded] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [status, setStatus] = useState<'ready' | 'translating' | 'complete' | 'error'>('ready');
   const [message, setMessage] = useState('');
   const [result, setResult] = useState<TranslationResult | null>(null);
@@ -394,7 +395,10 @@ export default function App() {
   const loaded = useRef(false);
   const scrollView = useRef<ScrollView>(null);
   const sourceInput = useRef<TextInput>(null);
-  const sourceInputFocused = useRef(false);
+  const baseUrlInput = useRef<TextInput>(null);
+  const modelInput = useRef<TextInput>(null);
+  const apiKeyInput = useRef<TextInput>(null);
+  const focusedInput = useRef<TextInput | null>(null);
   const t = copy[settings.uiLanguage];
   const selectedText = result?.candidates[selectedCandidate]?.text ?? '';
 
@@ -453,24 +457,48 @@ export default function App() {
     void save(next).catch(() => undefined);
   };
 
-  const scrollSourceInputIntoView = () => {
-    if (!sourceInputFocused.current || sourceInput.current == null) {
+  const scrollFocusedInputIntoView = () => {
+    const input = focusedInput.current;
+    if (input == null) {
       return;
     }
     scrollView.current?.scrollResponderScrollNativeHandleToKeyboard(
-      sourceInput.current,
+      input,
       HEADER_HEIGHT + 12,
       true,
     );
   };
 
+  const focusInput = (input: TextInput | null) => {
+    focusedInput.current = input;
+    requestAnimationFrame(scrollFocusedInputIntoView);
+    setTimeout(scrollFocusedInputIntoView, 250);
+  };
+
+  const blurInput = (input: TextInput | null) => {
+    if (focusedInput.current === input) {
+      focusedInput.current = null;
+    }
+  };
+
   useEffect(() => {
-    const subscription = Keyboard.addListener(
-      'keyboardDidShow',
-      scrollSourceInputIntoView,
-    );
-    return () => subscription.remove();
+    const shown = Keyboard.addListener('keyboardDidShow', event => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hidden = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
   }, []);
+
+  useEffect(() => {
+    if (keyboardHeight > 0) {
+      requestAnimationFrame(scrollFocusedInputIntoView);
+    }
+  }, [keyboardHeight]);
 
   const updateSetting = <K extends keyof SettingsState>(
     key: K,
@@ -636,7 +664,10 @@ export default function App() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          keyboardHeight > 0 && {paddingBottom: keyboardHeight + 24},
+        ]}
         keyboardShouldPersistTaps="handled"
         ref={scrollView}
         showsVerticalScrollIndicator={false}>
@@ -699,19 +730,14 @@ export default function App() {
                 accessibilityLabel={t.original}
                 maxLength={800}
                 multiline
-                onBlur={() => {
-                  sourceInputFocused.current = false;
-                }}
+                onBlur={() => blurInput(sourceInput.current)}
                 onChangeText={text => {
                   setSource(text);
                   if (result) {
                     clearResult();
                   }
                 }}
-                onFocus={() => {
-                  sourceInputFocused.current = true;
-                  scrollSourceInputIntoView();
-                }}
+                onFocus={() => focusInput(sourceInput.current)}
                 placeholder={t.inputHint}
                 placeholderTextColor="#A0A1AF"
                 ref={sourceInput}
@@ -904,9 +930,12 @@ export default function App() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="url"
+                  onBlur={() => blurInput(baseUrlInput.current)}
                   onChangeText={value => updateSetting('baseUrl', value)}
+                  onFocus={() => focusInput(baseUrlInput.current)}
                   placeholder="https://api.openai.com/v1"
                   placeholderTextColor="#A0A1AF"
+                  ref={baseUrlInput}
                   style={styles.textField}
                   value={settings.baseUrl}
                 />
@@ -914,9 +943,12 @@ export default function App() {
                 <TextInput
                   autoCapitalize="none"
                   autoCorrect={false}
+                  onBlur={() => blurInput(modelInput.current)}
                   onChangeText={value => updateSetting('model', value)}
+                  onFocus={() => focusInput(modelInput.current)}
                   placeholder="gpt-5.6-luna"
                   placeholderTextColor="#A0A1AF"
+                  ref={modelInput}
                   style={styles.textField}
                   value={settings.model}
                 />
@@ -924,12 +956,15 @@ export default function App() {
                 <TextInput
                   autoCapitalize="none"
                   autoCorrect={false}
+                  onBlur={() => blurInput(apiKeyInput.current)}
                   onChangeText={value => {
                     setApiKey(value);
                     setApiKeyChanged(true);
                   }}
+                  onFocus={() => focusInput(apiKeyInput.current)}
                   placeholder={hasApiKey && !apiKeyChanged ? t.savedKey : t.apiKeyHint}
                   placeholderTextColor="#A0A1AF"
+                  ref={apiKeyInput}
                   secureTextEntry
                   style={styles.textField}
                   value={apiKey}
