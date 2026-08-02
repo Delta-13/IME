@@ -12,6 +12,11 @@
     <string name="overlay_service_description">Monitors the focused non-password input field and generates a translation after typing stops. It replaces text only when you tap the translation and the source has not changed.</string>
     <string name="overlay_drag">Move overlay</string>
     <string name="overlay_brand_symbol">T</string>
+    <string name="overlay_open_app">Configure in app</string>
+    <string name="overlay_open_app_symbol">⚙</string>
+    <string name="overlay_direction">%1$s → %2$s</string>
+    <string name="overlay_settings_summary">%1$s · %2$s · %3$d/%4$d/%5$d</string>
+    <string name="overlay_settings_summary_description">Relationship %1$s, situation %2$s, politeness %3$d, warmth %4$d, directness %5$d</string>
     <string name="overlay_adjust">Adjust overlay display</string>
     <string name="overlay_adjust_symbol">◐</string>
     <string name="overlay_display_settings">Overlay display</string>

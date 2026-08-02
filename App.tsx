@@ -28,6 +28,7 @@ type SettingsState = {
   politeness: number;
   warmth: number;
   directness: number;
+  overlayOpacity: number;
   baseUrl: string;
   model: string;
 };
@@ -78,6 +79,7 @@ const DEFAULTS: SettingsState = {
   politeness: 3,
   warmth: 3,
   directness: 3,
+  overlayOpacity: 90,
   baseUrl: 'https://api.openai.com/v1',
   model: 'gpt-5.6-luna',
 };
@@ -127,6 +129,9 @@ const copy = {
     saveFailed: '设置保存失败，请重试。',
     overlayButton: '开启 / 管理实时浮窗',
     privacy: '仅读取当前获得焦点的非密码输入框；停顿约 0.9 秒后翻译。必须点击译文才会替换，绝不自动发送。',
+    overlayDisplay: '浮窗显示',
+    overlayOpacity: '透明度',
+    overlaySizeHint: '在浮窗右下角拖动可调整大小；内容会随宽度自动收纳。',
     select: '选择',
     close: '关闭',
     notAvailable: '—',
@@ -175,6 +180,9 @@ const copy = {
     saveFailed: '設定を保存できませんでした。',
     overlayButton: 'リアルタイム表示を設定',
     privacy: '現在フォーカス中のパスワード以外の入力欄だけを読み取り、約0.9秒後に翻訳します。訳文をタップした時だけ置き換え、自動送信はしません。',
+    overlayDisplay: 'フローティング表示',
+    overlayOpacity: '透明度',
+    overlaySizeHint: '右下をドラッグしてサイズ変更できます。幅に合わせて内容を収めます。',
     select: '選択',
     close: '閉じる',
     notAvailable: '—',
@@ -223,6 +231,9 @@ const copy = {
     saveFailed: 'Could not save settings. Please try again.',
     overlayButton: 'Enable / manage live overlay',
     privacy: 'Only the focused, non-password input is read and translated after about 0.9 seconds. Text changes only when you tap a translation and is never auto-sent.',
+    overlayDisplay: 'Overlay display',
+    overlayOpacity: 'Opacity',
+    overlaySizeHint: 'Drag the lower-right corner to resize; content adapts to the available width.',
     select: 'Select',
     close: 'Close',
     notAvailable: '—',
@@ -326,31 +337,38 @@ function SelectField<T extends string>({
   );
 }
 
-function ToneSlider({
+function RangeSlider({
   label,
   value,
+  min,
+  max,
+  valueLabel = String(value),
   onChange,
   onComplete,
 }: {
   label: string;
   value: number;
+  min: number;
+  max: number;
+  valueLabel?: string;
   onChange: (value: number) => void;
   onComplete: (value: number) => void;
 }) {
   const width = useRef(1);
   const valueFromX = (x: number) =>
-    Math.max(1, Math.min(5, Math.round((x / width.current) * 4) + 1));
+    Math.max(min, Math.min(max, Math.round((x / width.current) * (max - min)) + min));
+  const progress = ((value - min) / (max - min)) * 100;
   return (
     <View style={styles.rangeRow}>
       <Text style={styles.rangeLabel}>{label}</Text>
       <View
         accessibilityActions={[{name: 'increment'}, {name: 'decrement'}]}
         accessibilityRole="adjustable"
-        accessibilityValue={{min: 1, max: 5, now: value}}
+        accessibilityValue={{min, max, now: value, text: valueLabel}}
         onAccessibilityAction={event => {
           const next = event.nativeEvent.actionName === 'increment'
-            ? Math.min(5, value + 1)
-            : Math.max(1, value - 1);
+            ? Math.min(max, value + 1)
+            : Math.max(min, value - 1);
           onChange(next);
           onComplete(next);
         }}
@@ -368,13 +386,22 @@ function ToneSlider({
         onStartShouldSetResponder={() => true}
         style={styles.rangeTouch}>
         <View style={styles.rangeTrack}>
-          <View style={[styles.rangeFill, {width: `${((value - 1) / 4) * 100}%`}]} />
-          <View style={[styles.rangeThumb, {left: `${((value - 1) / 4) * 100}%`}]} />
+          <View style={[styles.rangeFill, {width: `${progress}%`}]} />
+          <View style={[styles.rangeThumb, {left: `${progress}%`}]} />
         </View>
       </View>
-      <Text style={styles.rangeValue}>{value}</Text>
+      <Text style={[styles.rangeValue, max > 5 && styles.rangeValueWide]}>{valueLabel}</Text>
     </View>
   );
+}
+
+function ToneSlider(props: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  onComplete: (value: number) => void;
+}) {
+  return <RangeSlider {...props} min={1} max={5} />;
 }
 
 export default function App() {
@@ -414,6 +441,7 @@ export default function App() {
           politeness: state.politeness,
           warmth: state.warmth,
           directness: state.directness,
+          overlayOpacity: state.overlayOpacity,
           baseUrl: state.baseUrl,
           model: state.model,
         });
@@ -915,6 +943,24 @@ export default function App() {
             <Text style={styles.overlayButtonArrow}>›</Text>
           </Pressable>
 
+          <View style={[styles.card, styles.overlayDisplayCard]}>
+            <Text style={styles.cardTitle}>{t.overlayDisplay}</Text>
+            <RangeSlider
+              label={t.overlayOpacity}
+              max={100}
+              min={35}
+              onChange={value => updateSetting('overlayOpacity', value)}
+              onComplete={value => {
+                const next = {...settings, overlayOpacity: value};
+                setSettings(next);
+                saveQuietly(next);
+              }}
+              value={settings.overlayOpacity}
+              valueLabel={`${settings.overlayOpacity}%`}
+            />
+            <Text style={styles.overlayDisplayHint}>{t.overlaySizeHint}</Text>
+          </View>
+
           <View style={[styles.card, styles.apiCard]}>
             <Pressable
               accessibilityState={{expanded: apiExpanded}}
@@ -1191,6 +1237,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     width: 25,
   },
+  rangeValueWide: {width: 42},
   primary: {
     alignItems: 'center',
     backgroundColor: colors.accent,
@@ -1324,6 +1371,8 @@ const styles = StyleSheet.create({
   overlayButtonTitle: {color: colors.ink, fontSize: 13, fontWeight: '800'},
   overlayButtonHint: {color: colors.muted, fontSize: 9, lineHeight: 14, marginTop: 5},
   overlayButtonArrow: {color: colors.accent, fontSize: 25},
+  overlayDisplayCard: {marginBottom: 13, paddingBottom: 12},
+  overlayDisplayHint: {color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 5},
   apiCard: {overflow: 'hidden', padding: 0},
   apiHeader: {
     alignItems: 'center',

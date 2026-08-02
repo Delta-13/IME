@@ -11,6 +11,9 @@ final class AppSettings {
     static final String DEFAULT_MODEL = "gpt-5.6-luna";
     static final String ACTION_UI_LANGUAGE_CHANGED =
             "com.toneime.android.UI_LANGUAGE_CHANGED";
+    static final String ACTION_OVERLAY_HIDE = "com.toneime.android.OVERLAY_HIDE";
+    static final String ACTION_OVERLAY_SHOW = "com.toneime.android.OVERLAY_SHOW";
+    static final String APP_VISIBLE = "app_visible";
     static final String OVERLAY_OPACITY = "overlay_opacity";
     static final String OVERLAY_WIDTH_DP = "overlay_width_dp";
     static final String OVERLAY_HEIGHT_DP = "overlay_height_dp";

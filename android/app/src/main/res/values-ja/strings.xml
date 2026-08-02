@@ -12,6 +12,11 @@
     <string name="overlay_service_description">現在のパスワード以外の入力欄を監視し、入力が止まると訳文を生成します。原文が変わっていない場合に、ユーザーが訳文をタップしたときだけ置換します。</string>
     <string name="overlay_drag">フローティング表示を移動</string>
     <string name="overlay_brand_symbol">T</string>
+    <string name="overlay_open_app">アプリで設定</string>
+    <string name="overlay_open_app_symbol">⚙</string>
+    <string name="overlay_direction">%1$s → %2$s</string>
+    <string name="overlay_settings_summary">%1$s · %2$s · %3$d/%4$d/%5$d</string>
+    <string name="overlay_settings_summary_description">関係 %1$s、場面 %2$s、丁寧さ %3$d、親密さ %4$d、直接さ %5$d</string>
     <string name="overlay_adjust">表示を調整</string>
     <string name="overlay_adjust_symbol">◐</string>
     <string name="overlay_display_settings">表示設定</string>

@@ -12,6 +12,11 @@
     <string name="overlay_service_description">监测当前非密码输入框，在停顿后生成译文；仅在用户点击译文且原文未变化时替换。</string>
     <string name="overlay_drag">拖动浮窗</string>
     <string name="overlay_brand_symbol">T</string>
+    <string name="overlay_open_app">在应用中设置</string>
+    <string name="overlay_open_app_symbol">⚙</string>
+    <string name="overlay_direction">%1$s → %2$s</string>
+    <string name="overlay_settings_summary">%1$s · %2$s · %3$d/%4$d/%5$d</string>
+    <string name="overlay_settings_summary_description">关系 %1$s，场景 %2$s；礼貌 %3$d，亲密 %4$d，直接 %5$d</string>
     <string name="overlay_adjust">调节浮窗显示</string>
     <string name="overlay_adjust_symbol">◐</string>
     <string name="overlay_display_settings">浮窗显示</string>

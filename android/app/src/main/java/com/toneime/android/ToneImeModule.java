@@ -60,6 +60,10 @@ public final class ToneImeModule extends ReactContextBaseJavaModule implements N
                     AppSettings.level(preferences.getInt("warmth", 3)));
             state.putInt("directness",
                     AppSettings.level(preferences.getInt("directness", 3)));
+            state.putInt("overlayOpacity",
+                    AppSettings.overlayOpacity(preferences.getInt(
+                            AppSettings.OVERLAY_OPACITY,
+                            AppSettings.OVERLAY_OPACITY_DEFAULT)));
             state.putString("baseUrl",
                     preferences.getString("base_url", AppSettings.DEFAULT_BASE_URL));
             state.putString("model",
@@ -262,7 +266,13 @@ public final class ToneImeModule extends ReactContextBaseJavaModule implements N
             throw new IllegalArgumentException("Model is required.");
         }
 
-        AppSettings.preferences(getReactApplicationContext())
+        SharedPreferences preferences = AppSettings.preferences(getReactApplicationContext());
+        int overlayOpacity = overlayOpacity(
+                settings,
+                preferences.getInt(
+                        AppSettings.OVERLAY_OPACITY,
+                        AppSettings.OVERLAY_OPACITY_DEFAULT));
+        preferences
                 .edit()
                 .putString("source_language", source)
                 .putString("target_language", target)
@@ -273,6 +283,7 @@ public final class ToneImeModule extends ReactContextBaseJavaModule implements N
                 .putInt("politeness", level(settings, "politeness"))
                 .putInt("warmth", level(settings, "warmth"))
                 .putInt("directness", level(settings, "directness"))
+                .putInt(AppSettings.OVERLAY_OPACITY, overlayOpacity)
                 .putString("base_url", baseUrl)
                 .putString("model", model)
                 .apply();
@@ -374,6 +385,13 @@ public final class ToneImeModule extends ReactContextBaseJavaModule implements N
             return 3;
         }
         return AppSettings.level((int) Math.round(map.getDouble(key)));
+    }
+
+    private static int overlayOpacity(ReadableMap map, int fallback) {
+        if (!map.hasKey("overlayOpacity") || map.isNull("overlayOpacity")) {
+            return AppSettings.overlayOpacity(fallback);
+        }
+        return AppSettings.overlayOpacity((int) Math.round(map.getDouble("overlayOpacity")));
     }
 
     private static String string(ReadableMap map, String key, String fallback) {

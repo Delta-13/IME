@@ -22,11 +22,6 @@ import android.view.ViewTreeObserver;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.ListPopupWindow;
-import android.widget.SeekBar;
-import android.widget.Spinner;
 import android.widget.TextView;
 
 import java.util.concurrent.ExecutorService;
@@ -35,25 +30,17 @@ import java.util.concurrent.Executors;
 public final class AccessibilityOverlayService extends AccessibilityService {
     private static final int MIN_KEYBOARD_HEIGHT_DP = 120;
     private static final long DEBOUNCE_MS = 900;
-    private static final String[] LEVELS = {"①", "②", "③", "④", "⑤"};
-
+    private static final String COMPACT_LAYOUT_VERSION = "overlay_compact_layout_version";
+    private static final int COMPACT_LAYOUT_VERSION_CURRENT = 1;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private WindowManager windowManager;
     private WindowManager.LayoutParams windowParams;
     private View overlay;
-    private Spinner sourceLanguage;
-    private Spinner targetLanguage;
-    private Spinner relation;
-    private Spinner scene;
-    private TextView politenessControl;
-    private TextView warmthControl;
-    private TextView directnessControl;
+    private TextView serviceTitle;
+    private TextView direction;
+    private TextView settingsSummary;
     private TextView candidate;
-    private View adjustPanel;
-    private SeekBar opacityControl;
-    private TextView opacityValue;
-    private ListPopupWindow choicesPopup;
     private int politeness = 3;
     private int warmth = 3;
     private int directness = 3;
@@ -64,10 +51,12 @@ public final class AccessibilityOverlayService extends AccessibilityService {
     private String latestTranslation = "";
     private int generation;
     private long suppressEventsUntil;
-    private boolean updatingLanguages;
     private boolean receiverRegistered;
-    private String previousSourceLanguage;
-    private String previousTargetLanguage;
+    private String sourceLanguageCode = "zh";
+    private String targetLanguageCode = "ja";
+    private String relationId = "friend";
+    private String sceneId = "auto";
+    private boolean compactOverlay;
     private int manualOverlayY;
     private int lastKeyboardHeight = Integer.MIN_VALUE;
     private final ViewTreeObserver.OnGlobalLayoutListener overlayImeAvoidanceListener =
@@ -75,6 +64,17 @@ public final class AccessibilityOverlayService extends AccessibilityService {
     private final BroadcastReceiver languageReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (AppSettings.ACTION_OVERLAY_HIDE.equals(action)) {
+                hideOverlayForSettings();
+                return;
+            }
+            if (AppSettings.ACTION_OVERLAY_SHOW.equals(action)) {
+                if (overlay == null && windowParams != null) {
+                    showOverlay();
+                }
+                return;
+            }
             refreshOverlayLanguage();
         }
     };
@@ -95,6 +95,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         SharedPreferences preferences = AppSettings.preferences(this);
+        migrateCompactLayoutHeight(preferences);
         int displayWidth = getResources().getDisplayMetrics().widthPixels;
         int displayHeight = getResources().getDisplayMetrics().heightPixels;
         int width = Math.min(
@@ -119,16 +120,33 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         windowParams.y = dp(80);
         manualOverlayY = windowParams.y;
         registerLanguageReceiver();
-        showOverlay();
+        if (!preferences.getBoolean(AppSettings.APP_VISIBLE, false)) {
+            showOverlay();
+        }
+    }
+
+    private void migrateCompactLayoutHeight(SharedPreferences preferences) {
+        if (preferences.getInt(COMPACT_LAYOUT_VERSION, 0)
+                >= COMPACT_LAYOUT_VERSION_CURRENT) {
+            return;
+        }
+        preferences.edit()
+                .remove(AppSettings.OVERLAY_HEIGHT_DP)
+                .putInt(COMPACT_LAYOUT_VERSION, COMPACT_LAYOUT_VERSION_CURRENT)
+                .apply();
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event == null
-                || overlay == null
-                || SystemClock.uptimeMillis() < suppressEventsUntil
-                || getPackageName().equals(text(event.getPackageName()))) {
+        if (event == null || SystemClock.uptimeMillis() < suppressEventsUntil) {
             return;
+        }
+
+        if (getPackageName().equals(text(event.getPackageName()))) {
+            return;
+        }
+        if (overlay == null) {
+            showOverlay();
         }
 
         AccessibilityNodeInfo node = event.getSource();
@@ -165,7 +183,6 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         generation++;
         handler.removeCallbacksAndMessages(null);
         executor.shutdownNow();
-        dismissChoicesPopup();
         removeOverlayImeAvoidanceListener();
         if (overlay != null && windowManager != null) {
             windowManager.removeView(overlay);
@@ -181,6 +198,8 @@ public final class AccessibilityOverlayService extends AccessibilityService {
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     private void registerLanguageReceiver() {
         IntentFilter filter = new IntentFilter(AppSettings.ACTION_UI_LANGUAGE_CHANGED);
+        filter.addAction(AppSettings.ACTION_OVERLAY_HIDE);
+        filter.addAction(AppSettings.ACTION_OVERLAY_SHOW);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(languageReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
@@ -191,16 +210,20 @@ public final class AccessibilityOverlayService extends AccessibilityService {
 
     @SuppressLint("InflateParams")
     private void showOverlay() {
+        if (AppSettings.preferences(this).getBoolean(AppSettings.APP_VISIBLE, false)) {
+            return;
+        }
         Context localized = AppSettings.localizedContext(this);
         overlay = LayoutInflater.from(localized).inflate(R.layout.overlay_window, null);
         bindViews();
-        setupChoices();
         loadSettings();
         setupListeners();
         if (manualOverlayY <= 0) {
             manualOverlayY = windowParams.y;
         }
         windowManager.addView(overlay, windowParams);
+        overlay.addOnLayoutChangeListener((view, left, top, right, bottom,
+                oldLeft, oldTop, oldRight, oldBottom) -> updateResponsiveLayout(right - left));
         overlay.getViewTreeObserver().addOnGlobalLayoutListener(overlayImeAvoidanceListener);
         adjustOverlayForIme();
     }
@@ -214,7 +237,6 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         observedSource = "";
         translatedSource = "";
         latestTranslation = "";
-        dismissChoicesPopup();
         removeOverlayImeAvoidanceListener();
         windowManager.removeView(overlay);
         overlay = null;
@@ -222,96 +244,26 @@ public final class AccessibilityOverlayService extends AccessibilityService {
     }
 
     private void bindViews() {
-        sourceLanguage = overlay.findViewById(R.id.overlay_source_language_spinner);
-        targetLanguage = overlay.findViewById(R.id.overlay_target_language_spinner);
-        relation = overlay.findViewById(R.id.overlay_relation_spinner);
-        scene = overlay.findViewById(R.id.overlay_scene_spinner);
-        politenessControl = overlay.findViewById(R.id.overlay_politeness_control);
-        warmthControl = overlay.findViewById(R.id.overlay_warmth_control);
-        directnessControl = overlay.findViewById(R.id.overlay_directness_control);
+        serviceTitle = overlay.findViewById(R.id.overlay_service_title);
+        direction = overlay.findViewById(R.id.overlay_direction);
+        settingsSummary = overlay.findViewById(R.id.overlay_settings_summary);
         candidate = overlay.findViewById(R.id.overlay_candidate);
-        adjustPanel = overlay.findViewById(R.id.overlay_adjust_panel);
-        opacityControl = overlay.findViewById(R.id.overlay_opacity);
-        opacityValue = overlay.findViewById(R.id.overlay_opacity_value);
-    }
-
-    private void setupChoices() {
-        setupSpinner(sourceLanguage, R.array.translation_language_names);
-        setupSpinner(targetLanguage, R.array.translation_language_names);
-        setupSpinner(relation, R.array.relation_names);
-        setupSpinner(scene, R.array.scene_names);
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    private void setupSpinner(Spinner spinner, int valuesResource) {
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                spinner.getContext(),
-                android.R.layout.simple_spinner_item,
-                spinner.getResources().getStringArray(valuesResource));
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-        spinner.setOnTouchListener((view, event) -> {
-            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
-                showChoicesPopup(spinner, adapter);
-                spinner.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_CLICKED);
-            }
-            return true;
-        });
-        spinner.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override
-            public boolean performAccessibilityAction(
-                    View host,
-                    int action,
-                    Bundle arguments) {
-                if (action == AccessibilityNodeInfo.ACTION_CLICK) {
-                    showChoicesPopup(spinner, adapter);
-                    return true;
-                }
-                return super.performAccessibilityAction(host, action, arguments);
-            }
-        });
-    }
-
-    private void showChoicesPopup(Spinner spinner, ArrayAdapter<String> adapter) {
-        dismissChoicesPopup();
-        ListPopupWindow popup = new ListPopupWindow(spinner.getContext());
-        popup.setAdapter(adapter);
-        popup.setAnchorView(spinner);
-        popup.setModal(false);
-        popup.setBackgroundDrawable(
-                spinner.getContext().getDrawable(R.drawable.bg_overlay_dropdown));
-        popup.setVerticalOffset(dp(6));
-        popup.setWidth(Math.max(spinner.getWidth(), dp(150)));
-        popup.setOnItemClickListener((parent, view, position, id) -> {
-            spinner.setSelection(position);
-            popup.dismiss();
-        });
-        popup.setOnDismissListener(() -> {
-            if (choicesPopup == popup) {
-                choicesPopup = null;
-            }
-        });
-        choicesPopup = popup;
-        popup.show();
-    }
-
-    private void dismissChoicesPopup() {
-        if (choicesPopup != null) {
-            choicesPopup.dismiss();
-            choicesPopup = null;
-        }
     }
 
     private void loadSettings() {
         SharedPreferences preferences = AppSettings.preferences(this);
         AppSettings.migrate(preferences);
-        select(sourceLanguage, AppSettings.TRANSLATION_LANGUAGES,
-                preferences.getString("source_language", "zh"));
-        select(targetLanguage, AppSettings.TRANSLATION_LANGUAGES,
-                preferences.getString("target_language", "ja"));
-        select(relation, AppSettings.RELATIONS,
+        sourceLanguageCode = AppSettings.normalized(
+                preferences.getString("source_language", "zh"),
+                AppSettings.TRANSLATION_LANGUAGES,
+                "zh");
+        targetLanguageCode = AppSettings.normalized(
+                preferences.getString("target_language", "ja"),
+                AppSettings.TRANSLATION_LANGUAGES,
+                "ja");
+        relationId = AppSettings.relationId(
                 preferences.getString("relation_id", "friend"));
-        select(scene, AppSettings.SCENES,
+        sceneId = AppSettings.sceneId(
                 preferences.getString("scene_id", "auto"));
         politeness = clamp(preferences.getInt("politeness", 3), 1, 5);
         warmth = clamp(preferences.getInt("warmth", 3), 1, 5);
@@ -319,119 +271,105 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         overlayOpacity = AppSettings.overlayOpacity(preferences.getInt(
                 AppSettings.OVERLAY_OPACITY,
                 AppSettings.OVERLAY_OPACITY_DEFAULT));
-        opacityControl.setProgress(overlayOpacity);
         applyOverlayOpacity();
-        previousSourceLanguage =
-                selected(sourceLanguage, AppSettings.TRANSLATION_LANGUAGES, "zh");
-        previousTargetLanguage =
-                selected(targetLanguage, AppSettings.TRANSLATION_LANGUAGES, "ja");
-        updateStyleControls();
+        updateSettingsSummary();
     }
 
     private void setupListeners() {
-        sourceLanguage.setOnItemSelectedListener(languageListener(true));
-        targetLanguage.setOnItemSelectedListener(languageListener(false));
-        AdapterView.OnItemSelectedListener choiceListener =
-                new AdapterView.OnItemSelectedListener() {
-                    @Override
-                    public void onItemSelected(
-                            AdapterView<?> parent,
-                            View view,
-                            int position,
-                            long id) {
-                        settingsChanged();
-                    }
-
-                    @Override
-                    public void onNothingSelected(AdapterView<?> parent) {
-                    }
-                };
-        relation.setOnItemSelectedListener(choiceListener);
-        scene.setOnItemSelectedListener(choiceListener);
-
-        politenessControl.setOnClickListener(view -> {
-            politeness = nextLevel(politeness);
-            styleChanged();
-        });
-        warmthControl.setOnClickListener(view -> {
-            warmth = nextLevel(warmth);
-            styleChanged();
-        });
-        directnessControl.setOnClickListener(view -> {
-            directness = nextLevel(directness);
-            styleChanged();
-        });
-
         candidate.setOnClickListener(view -> replaceCurrentInput());
         overlay.findViewById(R.id.overlay_close).setOnClickListener(view -> disableSelf());
-        overlay.findViewById(R.id.overlay_adjust).setOnClickListener(view -> {
-            adjustPanel.setVisibility(
-                    adjustPanel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
-            overlay.requestLayout();
-            windowManager.updateViewLayout(overlay, windowParams);
-            adjustOverlayForIme();
-        });
-        opacityControl.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(
-                    SeekBar seekBar,
-                    int progress,
-                    boolean fromUser) {
-                overlayOpacity = AppSettings.overlayOpacity(progress);
-                applyOverlayOpacity();
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-                AppSettings.preferences(AccessibilityOverlayService.this)
-                        .edit()
-                        .putInt(AppSettings.OVERLAY_OPACITY, overlayOpacity)
-                        .apply();
-            }
-        });
+        overlay.findViewById(R.id.overlay_open_app).setOnClickListener(
+                view -> openMainAppSettings());
         setupDragging(overlay.findViewById(R.id.overlay_drag_handle));
         setupResizing(overlay.findViewById(R.id.overlay_resize_handle));
     }
 
-    private AdapterView.OnItemSelectedListener languageListener(boolean sourceChanged) {
-        return new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(
-                    AdapterView<?> parent,
-                    View view,
-                    int position,
-                    long id) {
-                if (updatingLanguages) {
-                    return;
-                }
-                String selected = AppSettings.at(
-                        AppSettings.TRANSLATION_LANGUAGES,
-                        position,
-                        sourceChanged ? previousSourceLanguage : previousTargetLanguage);
-                AppSettings.LanguagePair pair = AppSettings.afterLanguageChange(
-                        previousSourceLanguage,
-                        previousTargetLanguage,
-                        selected,
-                        sourceChanged);
-                updatingLanguages = true;
-                sourceLanguage.setSelection(
-                        AppSettings.indexOf(AppSettings.TRANSLATION_LANGUAGES, pair.source));
-                targetLanguage.setSelection(
-                        AppSettings.indexOf(AppSettings.TRANSLATION_LANGUAGES, pair.target));
-                updatingLanguages = false;
-                previousSourceLanguage = pair.source;
-                previousTargetLanguage = pair.target;
-                settingsChanged();
-            }
+    private void openMainAppSettings() {
+        hideOverlayForSettings();
+        Intent intent = new Intent(this, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                        | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        startActivity(intent);
+    }
 
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        };
+    private void hideOverlayForSettings() {
+        if (overlay == null || windowManager == null) {
+            return;
+        }
+        generation++;
+        handler.removeCallbacksAndMessages(null);
+        pendingTranslation = null;
+        observedSource = "";
+        translatedSource = "";
+        latestTranslation = "";
+        removeOverlayImeAvoidanceListener();
+        windowManager.removeView(overlay);
+        overlay = null;
+    }
+
+    private void updateSettingsSummary() {
+        String source = localizedLabel(
+                R.array.translation_language_names,
+                AppSettings.TRANSLATION_LANGUAGES,
+                sourceLanguageCode,
+                "zh");
+        String target = localizedLabel(
+                R.array.translation_language_names,
+                AppSettings.TRANSLATION_LANGUAGES,
+                targetLanguageCode,
+                "ja");
+        String currentRelation = localizedLabel(
+                R.array.relation_names,
+                AppSettings.RELATIONS,
+                relationId,
+                "friend");
+        String currentScene = localizedLabel(
+                R.array.scene_names,
+                AppSettings.SCENES,
+                sceneId,
+                "auto");
+        direction.setText(direction.getContext().getString(
+                R.string.overlay_direction,
+                source,
+                target));
+        settingsSummary.setText(settingsSummary.getContext().getString(
+                R.string.overlay_settings_summary,
+                currentRelation,
+                currentScene,
+                politeness,
+                warmth,
+                directness));
+        settingsSummary.setContentDescription(settingsSummary.getContext().getString(
+                R.string.overlay_settings_summary_description,
+                currentRelation,
+                currentScene,
+                politeness,
+                warmth,
+                directness));
+    }
+
+    private String localizedLabel(
+            int namesResource,
+            String[] ids,
+            String id,
+            String fallback) {
+        String[] labels = overlay.getResources().getStringArray(namesResource);
+        return labels[AppSettings.indexOf(ids, AppSettings.normalized(id, ids, fallback))];
+    }
+
+    private void updateResponsiveLayout(int width) {
+        if (width <= 0) {
+            return;
+        }
+        boolean nextCompact = width < dp(300);
+        if (nextCompact == compactOverlay) {
+            return;
+        }
+        compactOverlay = nextCompact;
+        serviceTitle.setVisibility(nextCompact ? View.GONE : View.VISIBLE);
+        settingsSummary.setMaxLines(nextCompact ? 2 : 1);
+        candidate.setMaxLines(nextCompact ? 2 : 3);
     }
 
     private void setupDragging(View handle) {
@@ -564,9 +502,6 @@ public final class AccessibilityOverlayService extends AccessibilityService {
             return;
         }
         overlay.setAlpha(overlayOpacity / 100f);
-        opacityValue.setText(opacityValue.getContext().getString(
-                R.string.overlay_opacity_value,
-                overlayOpacity));
     }
 
     private void adjustOverlayForIme() {
@@ -693,12 +628,12 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         }
 
         TranslationProtocol.Request request = new TranslationProtocol.Request(
-                selected(sourceLanguage, AppSettings.TRANSLATION_LANGUAGES, "zh"),
-                selected(targetLanguage, AppSettings.TRANSLATION_LANGUAGES, "ja"),
+                sourceLanguageCode,
+                targetLanguageCode,
                 AppSettings.uiLanguage(this),
                 source,
-                selected(relation, AppSettings.RELATIONS, "friend"),
-                selected(scene, AppSettings.SCENES, "auto"),
+                relationId,
+                sceneId,
                 politeness,
                 warmth,
                 directness);
@@ -814,78 +749,6 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         latestTranslation = "";
         candidate.setText(R.string.overlay_status_waiting);
         candidate.setEnabled(false);
-    }
-
-    private void settingsChanged() {
-        AppSettings.preferences(this)
-                .edit()
-                .putString("source_language", selected(
-                        sourceLanguage,
-                        AppSettings.TRANSLATION_LANGUAGES,
-                        "zh"))
-                .putString("target_language", selected(
-                        targetLanguage,
-                        AppSettings.TRANSLATION_LANGUAGES,
-                        "ja"))
-                .putString("relation_id", selected(
-                        relation,
-                        AppSettings.RELATIONS,
-                        "friend"))
-                .putString("scene_id", selected(
-                        scene,
-                        AppSettings.SCENES,
-                        "auto"))
-                .putInt("politeness", politeness)
-                .putInt("warmth", warmth)
-                .putInt("directness", directness)
-                .apply();
-        if (!observedSource.isEmpty()) {
-            translatedSource = "";
-            latestTranslation = "";
-            candidate.setText(R.string.overlay_status_typing);
-            candidate.setEnabled(false);
-            scheduleTranslation(observedSource);
-        }
-    }
-
-    private void styleChanged() {
-        updateStyleControls();
-        settingsChanged();
-    }
-
-    private void updateStyleControls() {
-        updateStyleControl(
-                politenessControl,
-                politeness,
-                R.string.overlay_politeness);
-        updateStyleControl(
-                warmthControl,
-                warmth,
-                R.string.overlay_warmth);
-        updateStyleControl(
-                directnessControl,
-                directness,
-                R.string.overlay_directness);
-    }
-
-    private void updateStyleControl(TextView control, int value, int description) {
-        control.setText(LEVELS[value - 1]);
-        control.setContentDescription(control.getContext().getString(description, value));
-    }
-
-    private static void select(Spinner spinner, String[] values, String selected) {
-        spinner.setSelection(AppSettings.indexOf(values, selected));
-    }
-
-    private static int nextLevel(int value) {
-        return value == 5 ? 1 : value + 1;
-    }
-
-    private static String selected(
-            Spinner spinner,
-            String[] values,
-            String fallback) {
-        return AppSettings.at(values, spinner.getSelectedItemPosition(), fallback);
     }
 
     private static String text(CharSequence value) {
