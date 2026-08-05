@@ -5,6 +5,8 @@ publish/
 *.user
 *.suo
 .tooling/
+.tools/
+.codex-remote-attachments/
 android/.gradle/
 android/.idea/
 android/.kotlin/

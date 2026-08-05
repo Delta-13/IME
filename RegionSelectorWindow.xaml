@@ -1,0 +1,29 @@
+<Window x:Class="ToneIME.RegionSelectorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="#33000000"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Cursor="Cross"
+        KeyDown="OnKeyDown"
+        MouseLeftButtonDown="OnMouseDown"
+        MouseMove="OnMouseMove"
+        MouseLeftButtonUp="OnMouseUp">
+    <Canvas x:Name="SelectionCanvas">
+        <Border x:Name="SelectionBorder"
+                Visibility="Collapsed"
+                BorderBrush="#6366F1"
+                BorderThickness="3"
+                Background="#22FFFFFF"/>
+        <Border Canvas.Left="24" Canvas.Top="24"
+                Background="#DD111827"
+                CornerRadius="8"
+                Padding="14,10">
+            <TextBlock Foreground="White"
+                       FontSize="15"
+                       Text="拖动框选 LINE 的消息区域；Esc 取消"/>
+        </Border>
+    </Canvas>
+</Window>

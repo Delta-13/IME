@@ -1,0 +1,354 @@
+<Window x:Class="ToneIME.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ToneIME · 中日关系语气翻译"
+        Width="1040"
+        Height="760"
+        MinWidth="900"
+        MinHeight="650"
+        Background="{StaticResource SurfaceBrush}"
+        Topmost="True"
+        SourceInitialized="OnSourceInitialized"
+        Closing="OnClosing">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="#111827" Padding="18,13">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right"
+                           Foreground="#A5B4FC"
+                           VerticalAlignment="Center"
+                           Text="全局快捷键  Ctrl + Alt + J"/>
+                <StackPanel>
+                    <TextBlock Foreground="White"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Text="ToneIME"/>
+                    <TextBlock Foreground="#CBD5E1"
+                               Margin="0,2,0,0"
+                               Text="中日关系语气翻译 · 预览确认后才回填"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <TabControl x:Name="MainTabs" Grid.Row="1" Margin="12">
+            <TabItem Header="翻译与 LINE 侧栏">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="2*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <WrapPanel Margin="0,0,0,8">
+                                <ComboBox x:Name="DirectionBox" Width="105" SelectionChanged="OnToneOptionChanged"/>
+                                <ComboBox x:Name="RelationBox" Width="120" SelectionChanged="OnToneOptionChanged"/>
+                                <ComboBox x:Name="SceneBox" Width="125" SelectionChanged="OnToneOptionChanged"/>
+                            </WrapPanel>
+
+                            <Border x:Name="QuotedContextBorder"
+                                    Visibility="Collapsed"
+                                    Background="#EEF2FF"
+                                    BorderBrush="#C7D2FE"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10"
+                                    Margin="3,0,3,8">
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right"
+                                            Padding="7,2"
+                                            MinHeight="24"
+                                            Content="取消引用"
+                                            Click="OnClearQuote"/>
+                                    <StackPanel>
+                                        <TextBlock Foreground="#4338CA" FontWeight="SemiBold" Text="回复上下文"/>
+                                        <TextBlock x:Name="QuotedContextText"
+                                                   Margin="0,3,8,0"
+                                                   TextWrapping="Wrap"
+                                                   MaxHeight="52"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+
+                            <TextBlock Margin="3,0,0,5" FontWeight="SemiBold" Text="输入原文"/>
+                            <TextBox x:Name="SourceTextBox"
+                                     MinHeight="126"
+                                     MaxLength="800"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     FontSize="16"
+                                     TextChanged="OnSourceTextChanged"
+                                     PreviewKeyDown="OnSourcePreviewKeyDown"/>
+
+                            <DockPanel Margin="0,7,0,8">
+                                <TextBlock x:Name="TranslationStatusText"
+                                           Foreground="#64748B"
+                                           VerticalAlignment="Center"
+                                           Text="输入后停顿 600ms 自动翻译"/>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <Button Content="清空" Click="OnClear"/>
+                                    <Button x:Name="TranslateButton"
+                                            Background="{StaticResource AccentBrush}"
+                                            Foreground="White"
+                                            Content="立即翻译"
+                                            Click="OnTranslate"/>
+                                </StackPanel>
+                            </DockPanel>
+
+                            <TextBlock Margin="3,0,0,5" FontWeight="SemiBold" Text="选择译文"/>
+                            <ListBox x:Name="CandidateList"
+                                     MinHeight="120"
+                                     SelectionMode="Single"
+                                     BorderBrush="{StaticResource BorderBrush}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="6,5">
+                                            <TextBlock Foreground="#4F46E5"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding Label}"/>
+                                            <TextBlock Margin="0,3,0,0"
+                                                       FontSize="15"
+                                                       TextWrapping="Wrap"
+                                                       Text="{Binding Text}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <Border Background="White"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10"
+                                    Margin="0,8,0,0">
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold" Text="回译检查"/>
+                                    <TextBlock x:Name="BackTranslationText"
+                                               Margin="0,4,0,0"
+                                               Foreground="#475569"
+                                               TextWrapping="Wrap"
+                                               Text="—"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border x:Name="WarningBorder"
+                                    Visibility="Collapsed"
+                                    Background="#FFF7ED"
+                                    BorderBrush="#FDBA74"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10"
+                                    Margin="0,8,0,0">
+                                <TextBlock x:Name="WarningText"
+                                           Foreground="#9A3412"
+                                           TextWrapping="Wrap"/>
+                            </Border>
+
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,9,0,0">
+                                <Button Content="复制" Click="OnCopyCandidate"/>
+                                <Button x:Name="InsertButton"
+                                        IsEnabled="False"
+                                        Background="#059669"
+                                        Foreground="White"
+                                        Content="插入 LINE  (Ctrl+Enter)"
+                                        Click="OnInsert"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Grid.Column="2"
+                            Background="White"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0">
+                                <TextBlock FontSize="17" FontWeight="SemiBold" Text="LINE 消息翻译侧栏"/>
+                                <TextBlock x:Name="ReaderStatusText"
+                                           Margin="0,4,0,0"
+                                           Foreground="#64748B"
+                                           TextWrapping="Wrap"
+                                           Text="未开始 · 默认不读屏"/>
+                            </StackPanel>
+
+                            <WrapPanel Grid.Row="1" Margin="0,8,0,8">
+                                <Button x:Name="StartReaderButton"
+                                        Content="开始本次会话"
+                                        Click="OnStartReader"/>
+                                <Button x:Name="CloudOcrButton"
+                                        Content="OpenAI OCR 本次会话"
+                                        Click="OnStartCloudOcr"/>
+                                <Button x:Name="StopReaderButton"
+                                        IsEnabled="False"
+                                        Content="停止"
+                                        Click="OnStopReader"/>
+                                <Button Content="框选 OCR 区域" Click="OnSelectOcrRegion"/>
+                            </WrapPanel>
+
+                            <ListBox x:Name="ReaderList"
+                                     Grid.Row="2"
+                                     BorderBrush="{StaticResource BorderBrush}"
+                                     HorizontalContentAlignment="Stretch">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="#E2E8F0"
+                                                BorderThickness="0,0,0,1"
+                                                Padding="7">
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right"
+                                                        Tag="{Binding}"
+                                                        Padding="8,3"
+                                                        Content="回复"
+                                                        Click="OnReplyReaderItem"/>
+                                                <TextBlock Margin="0,0,8,0"
+                                                           Text="{Binding Display}"
+                                                           TextWrapping="Wrap"/>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                                <Button Content="清空侧栏" Click="OnClearReader"/>
+                                <Button Background="{StaticResource AccentBrush}"
+                                        Foreground="White"
+                                        Content="回复所选消息"
+                                        Click="OnReplyToReaderItem"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="设置与隐私">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="18" MaxWidth="760" HorizontalAlignment="Left">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="560"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.ColumnSpan="2"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,12"
+                                   Text="OpenAI 兼容 API"/>
+
+                        <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Base URL"/>
+                        <TextBox x:Name="BaseUrlBox" Grid.Row="1" Grid.Column="1" Margin="0,4"/>
+
+                        <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="模型 ID"/>
+                        <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,4">
+                            <ComboBox x:Name="ModelBox"
+                                      IsEditable="True"
+                                      IsTextSearchEnabled="True"/>
+                            <TextBlock Margin="2,4,0,0"
+                                       FontSize="12"
+                                       Foreground="#64748B"
+                                       TextWrapping="Wrap"
+                                       Text="推荐文字低延迟：gpt-5.6-luna；Realtime 文字：gpt-realtime-2.1-mini。gpt-realtime-translate 仅支持音频输入。"/>
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="API Key"/>
+                        <PasswordBox x:Name="ApiKeyBox" Grid.Row="3" Grid.Column="1" Margin="0,4" Padding="8"/>
+
+                        <TextBlock Grid.Row="4" Grid.ColumnSpan="2"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Margin="0,18,0,9"
+                                   Text="自定义语气微调"/>
+
+                        <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="礼貌程度"/>
+                        <Slider x:Name="PolitenessSlider" Grid.Row="5" Grid.Column="1"
+                                Minimum="1" Maximum="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                                ValueChanged="OnStyleSliderChanged"/>
+
+                        <TextBlock Grid.Row="6" VerticalAlignment="Center" Text="亲密温度"/>
+                        <Slider x:Name="WarmthSlider" Grid.Row="6" Grid.Column="1"
+                                Minimum="1" Maximum="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                                ValueChanged="OnStyleSliderChanged"/>
+
+                        <TextBlock Grid.Row="7" VerticalAlignment="Center" Text="表达直接度"/>
+                        <Slider x:Name="DirectnessSlider" Grid.Row="7" Grid.Column="1"
+                                Minimum="1" Maximum="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                                ValueChanged="OnStyleSliderChanged"/>
+
+                        <TextBlock Grid.Row="8" VerticalAlignment="Top" Margin="0,10,0,0" Text="偏好示例（每行一条）"/>
+                        <TextBox x:Name="PreferredExamplesBox"
+                                 Grid.Row="8" Grid.Column="1"
+                                 Margin="0,7"
+                                 MinHeight="70"
+                                 MaxLength="1000"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"/>
+
+                        <TextBlock Grid.Row="9" VerticalAlignment="Top" Margin="0,10,0,0" Text="禁用表达（每行一条）"/>
+                        <TextBox x:Name="AvoidExpressionsBox"
+                                 Grid.Row="9" Grid.Column="1"
+                                 Margin="0,7"
+                                 MinHeight="70"
+                                 MaxLength="500"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"/>
+
+                        <StackPanel Grid.Row="10" Grid.ColumnSpan="2" Margin="0,18,0,0">
+                            <CheckBox x:Name="ScreenConsentBox"
+                                      Content="我选择启用读屏：只绑定一个 LINE 窗口；本机 OCR 截图不上传；点击 OpenAI OCR 时仅将框选截图发送到所配置 API，截图不保存。"/>
+                            <TextBlock Margin="22,6,0,0"
+                                       Foreground="#9A3412"
+                                       TextWrapping="Wrap"
+                                       Text="应用本身不保存正文。模型供应商是否留存取决于你配置的 API；请使用支持 no-store 的端点。"/>
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button Background="{StaticResource AccentBrush}"
+                                        Foreground="White"
+                                        Content="保存设置"
+                                        Click="OnSaveSettings"/>
+                                <Button Content="测试连接" Click="OnTestConnection"/>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="2" Background="#E2E8F0" Padding="10,7">
+            <DockPanel>
+                <TextBlock x:Name="StyleSummaryText"
+                           DockPanel.Dock="Right"
+                           Foreground="#475569"/>
+                <TextBlock x:Name="AppStatusText"
+                           Foreground="#334155"
+                           Text="就绪"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>
