@@ -2,7 +2,7 @@
 
 Android 自用 MVP，不替换现有中文输入法：
 
-- 可直接安装的调试包：[`dist/ToneIME-android-debug.apk`](dist/ToneIME-android-debug.apk)
+- 调试 APK 可通过下方构建命令生成，输出位置为 `app/build/outputs/apk/debug/app-debug.apk`。
 - 主页面使用 React Native 0.86，安装包已内置 JS Bundle，运行时不需要 Metro。
 - 界面可在中文、日文、英文之间即时切换；选择会保存，实时浮窗同步刷新。
 - 源语言和目标语言分别支持中文、日文、英文、韩文、德文，可进行任意不同语种之间的翻译。
