@@ -73,9 +73,9 @@ internal sealed class OpenAiCompatibleClient
 
         var endpoint = $"{_settings.BaseUrl.TrimEnd('/')}/chat/completions";
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var endpointUri) ||
-            endpointUri.Scheme is not ("https" or "http"))
+            endpointUri.Scheme != Uri.UriSchemeHttps)
         {
-            throw new InvalidOperationException("API 地址必须是有效的 HTTP 或 HTTPS 地址。");
+            throw new InvalidOperationException("API 地址必须是有效的 HTTPS 地址。");
         }
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpointUri);
@@ -146,9 +146,9 @@ internal sealed class OpenAiCompatibleClient
     {
         var endpoint = $"{_settings.BaseUrl.TrimEnd('/')}/chat/completions";
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var endpointUri) ||
-            endpointUri.Scheme is not ("https" or "http"))
+            endpointUri.Scheme != Uri.UriSchemeHttps)
         {
-            throw new InvalidOperationException("API 地址必须是有效的 HTTP 或 HTTPS 地址。");
+            throw new InvalidOperationException("API 地址必须是有效的 HTTPS 地址。");
         }
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpointUri);
@@ -191,14 +191,14 @@ internal sealed class OpenAiCompatibleClient
     {
         var endpoint = $"{_settings.BaseUrl.TrimEnd('/')}/realtime?model={Uri.EscapeDataString(model)}";
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var httpUri) ||
-            httpUri.Scheme is not ("https" or "http"))
+            httpUri.Scheme != Uri.UriSchemeHttps)
         {
-            throw new InvalidOperationException("API 地址必须是有效的 HTTP 或 HTTPS 地址。");
+            throw new InvalidOperationException("API 地址必须是有效的 HTTPS 地址。");
         }
 
         var builder = new UriBuilder(httpUri)
         {
-            Scheme = httpUri.Scheme == "https" ? "wss" : "ws"
+            Scheme = "wss"
         };
         using var socket = new ClientWebSocket();
         if (!string.IsNullOrWhiteSpace(_apiKey))
