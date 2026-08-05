@@ -28,6 +28,7 @@ ToneIME is a privacy-first translation assistant for Chinese, Japanese, and Engl
 ### Table of contents
 
 - [Features](#features)
+- [API providers](#api-providers)
 - [Quick start](#quick-start)
 - [Privacy and security](#privacy-and-security)
 - [Project layout](#project-layout)
@@ -39,7 +40,12 @@ ToneIME is a privacy-first translation assistant for Chinese, Japanese, and Engl
 - **Windows assistant** — supports LINE input assistance, opt-in local UI Automation / OCR reading, and a Japanese–Chinese translation sidebar.
 - **Android companion** — supports Process Text, share targets, and a draggable, resizable accessibility overlay.
 - **Multilingual UI** — English, Simplified Chinese, and Japanese; Android also translates to and from Korean and German.
+- **Provider choice** — preset support for OpenAI, Claude, Qwen, Kimi, MiniMax, DeepSeek, and Google AI (Gemini), plus a custom OpenAI-compatible HTTPS endpoint.
 - **User control** — translated text is never sent automatically.
+
+### API providers
+
+Choose a provider in API settings; ToneIME fills an editable recommended endpoint and model. Claude uses its native Messages API. Qwen, Kimi, MiniMax, DeepSeek, Google AI (Gemini), and custom services use their OpenAI-compatible Chat Completions endpoints. Enter the key issued by the selected provider.
 
 ### Quick start
 
@@ -63,10 +69,10 @@ The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 ### Privacy and security
 
-- API keys are stored by the operating system: Windows Credential Manager on Windows and Android Keystore-backed AES-GCM storage on Android.
+- API keys are isolated per provider and stored by the operating system: Windows Credential Manager on Windows and Android Keystore-backed AES-GCM storage on Android.
 - API endpoints must use HTTPS; API keys are never sent over cleartext HTTP.
 - Source text, translations, and screenshots are not persisted by the app.
-- Chat Completions requests set `store: false`.
+- OpenAI requests set `store: false`; other providers receive only their documented request fields.
 - Screen reading is opt-in, limited to the selected LINE window or region, and automatically stops when appropriate.
 
 ### Project layout
@@ -93,7 +99,12 @@ ToneIME 是一个面向中文、日文与英文沟通的隐私优先翻译助手
 - **Windows 助手**：支持 LINE 输入辅助、按需启用的本机 UI Automation / OCR 读取，以及日中侧栏翻译。
 - **Android 伴侣应用**：支持系统“处理文本”、分享入口与可拖动、可缩放的无障碍实时浮窗。
 - **多语言界面**：提供英文、简体中文、日文界面；Android 还支持韩语和德语互译。
+- **服务商选择**：内置 OpenAI、Claude、通义千问（Qwen）、Kimi、MiniMax、DeepSeek、Google AI（Gemini）预设，也支持自定义 OpenAI 兼容 HTTPS 端点。
 - **始终由你决定**：译文不会被自动发送。
+
+### API 服务商
+
+在 API 设置中选择服务商后，ToneIME 会填入可编辑的推荐端点和模型。Claude 使用原生 Messages API；通义千问、Kimi、MiniMax、DeepSeek、Google AI（Gemini）与自定义服务使用 OpenAI 兼容的 Chat Completions 端点。请填写当前所选服务商签发的 API Key。
 
 ### 快速开始
 
@@ -101,9 +112,9 @@ Windows 需要 .NET 10 SDK；Android 需要 Node.js 22.11+、JDK 17+、Android S
 
 ### 隐私与安全
 
-- API Key 由系统安全存储：Windows 使用凭据管理器，Android 使用 Android Keystore 支持的 AES-GCM 加密存储。
+- 每个服务商的 API Key 分开存储：Windows 使用凭据管理器，Android 使用 Android Keystore 支持的 AES-GCM 加密存储。
 - 仅接受 HTTPS API 地址，不会通过明文 HTTP 发送 API Key。
-- 程序不持久化原文、译文或截图；Chat Completions 请求使用 `store: false`。
+- 程序不持久化原文、译文或截图；OpenAI 请求使用 `store: false`，其他服务商只接收其文档规定的字段。
 - 读屏功能必须由你主动开启，仅限指定的 LINE 窗口或区域，并会在适当条件下自动停止。
 
 ---
@@ -122,7 +133,12 @@ ToneIME は、中国語・日本語・英語でのやり取りを支援する、
 - **Windows アシスタント**：LINE 入力支援、任意で有効化できるローカル UI Automation / OCR 読み取り、日中サイドバー翻訳に対応します。
 - **Android コンパニオン**：システムのテキスト処理、共有メニュー、ドラッグ・リサイズ可能なアクセシビリティ浮動ウィンドウに対応します。
 - **多言語 UI**：英語・簡体字中国語・日本語の UI を提供し、Android では韓国語・ドイツ語との相互翻訳にも対応します。
+- **プロバイダー選択**：OpenAI、Claude、Qwen、Kimi、MiniMax、DeepSeek、Google AI（Gemini）のプリセットに加え、カスタム OpenAI 互換 HTTPS エンドポイントに対応します。
 - **最終操作はユーザー自身で**：翻訳文が自動送信されることはありません。
+
+### API プロバイダー
+
+API 設定でプロバイダーを選択すると、編集可能な推奨エンドポイントとモデルが入力されます。Claude にはネイティブ Messages API を使用し、Qwen、Kimi、MiniMax、DeepSeek、Google AI（Gemini）、カスタムサービスには OpenAI 互換 Chat Completions エンドポイントを使用します。選択中のプロバイダーが発行した API Key を入力してください。
 
 ### はじめに
 
@@ -130,9 +146,9 @@ Windows には .NET 10 SDK、Android には Node.js 22.11+、JDK 17+、Android S
 
 ### プライバシーとセキュリティ
 
-- API キーは OS の安全なストレージに保存されます。Windows では資格情報マネージャー、Android では Android Keystore を利用した AES-GCM 暗号化ストレージを使用します。
+- API キーはプロバイダーごとに分離して OS の安全なストレージに保存されます。Windows では資格情報マネージャー、Android では Android Keystore を利用した AES-GCM 暗号化ストレージを使用します。
 - API エンドポイントは HTTPS のみを受け付け、API キーを平文 HTTP で送信しません。
-- 原文、翻訳文、スクリーンショットはアプリ内に永続保存されません。Chat Completions リクエストには `store: false` を設定します。
+- 原文、翻訳文、スクリーンショットはアプリ内に永続保存されません。OpenAI リクエストには `store: false` を設定し、他のプロバイダーには各 API の文書化されたフィールドだけを送信します。
 - 画面読み取りは明示的な有効化が必要で、指定した LINE ウィンドウまたは範囲だけを対象にし、適切な条件で自動停止します。
 
 ---

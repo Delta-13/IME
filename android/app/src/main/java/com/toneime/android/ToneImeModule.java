@@ -44,6 +44,8 @@ public final class ToneImeModule extends ReactContextBaseJavaModule implements N
         try {
             SharedPreferences preferences = AppSettings.preferences(getReactApplicationContext());
             AppSettings.migrate(preferences);
+            String provider = ApiProvider.normalize(
+                    preferences.getString("provider", AppSettings.DEFAULT_PROVIDER));
             WritableMap state = Arguments.createMap();
             state.putString("uiLanguage", AppSettings.uiLanguage(getReactApplicationContext()));
             state.putString("sourceLanguage",
@@ -64,12 +66,13 @@ public final class ToneImeModule extends ReactContextBaseJavaModule implements N
                     AppSettings.overlayOpacity(preferences.getInt(
                             AppSettings.OVERLAY_OPACITY,
                             AppSettings.OVERLAY_OPACITY_DEFAULT)));
+            state.putString("provider", provider);
             state.putString("baseUrl",
                     preferences.getString("base_url", AppSettings.DEFAULT_BASE_URL));
             state.putString("model",
                     preferences.getString("model", AppSettings.DEFAULT_MODEL));
             state.putBoolean("hasApiKey",
-                    !SecurePrefs.loadApiKey(getReactApplicationContext()).trim().isEmpty());
+                    !SecurePrefs.loadApiKey(getReactApplicationContext(), provider).trim().isEmpty());
             state.putBoolean("accessibilityEnabled", isAccessibilityEnabled());
             addIncomingText(state);
             promise.resolve(state);
@@ -151,9 +154,11 @@ public final class ToneImeModule extends ReactContextBaseJavaModule implements N
         }
 
         SharedPreferences preferences = AppSettings.preferences(getReactApplicationContext());
+        String provider = ApiProvider.normalize(
+                preferences.getString("provider", AppSettings.DEFAULT_PROVIDER));
         String endpoint = preferences.getString("base_url", AppSettings.DEFAULT_BASE_URL);
         String model = preferences.getString("model", AppSettings.DEFAULT_MODEL);
-        String apiKey = SecurePrefs.loadApiKey(getReactApplicationContext());
+        String apiKey = SecurePrefs.loadApiKey(getReactApplicationContext(), provider);
         if (endpoint == null || !endpoint.startsWith("https://")) {
             promise.reject("E_HTTPS_REQUIRED", "The API URL must use HTTPS.");
             return;
@@ -179,7 +184,7 @@ public final class ToneImeModule extends ReactContextBaseJavaModule implements N
         executor.execute(() -> {
             try {
                 TranslationProtocol.Result result = new OpenAiClient()
-                        .translate(endpoint, model, apiKey, translationRequest);
+                        .translate(provider, endpoint, model, apiKey, translationRequest);
                 if (requestGeneration != generation.get()) {
                     promise.reject("E_CANCELLED", "Translation was cancelled.");
                     return;
@@ -257,8 +262,10 @@ public final class ToneImeModule extends ReactContextBaseJavaModule implements N
         if (source.equals(target)) {
             target = "zh".equals(source) ? "ja" : "zh";
         }
-        String baseUrl = string(settings, "baseUrl", AppSettings.DEFAULT_BASE_URL).trim();
-        String model = string(settings, "model", AppSettings.DEFAULT_MODEL).trim();
+        String provider = ApiProvider.normalize(
+                string(settings, "provider", AppSettings.DEFAULT_PROVIDER));
+        String baseUrl = string(settings, "baseUrl", ApiProvider.defaultBaseUrl(provider)).trim();
+        String model = string(settings, "model", ApiProvider.defaultModel(provider)).trim();
         if (!baseUrl.startsWith("https://")) {
             throw new IllegalArgumentException("The API URL must use HTTPS.");
         }
@@ -284,11 +291,12 @@ public final class ToneImeModule extends ReactContextBaseJavaModule implements N
                 .putInt("warmth", level(settings, "warmth"))
                 .putInt("directness", level(settings, "directness"))
                 .putInt(AppSettings.OVERLAY_OPACITY, overlayOpacity)
+                .putString("provider", provider)
                 .putString("base_url", baseUrl)
                 .putString("model", model)
                 .apply();
         if (changedApiKey != null) {
-            SecurePrefs.saveApiKey(getReactApplicationContext(), changedApiKey);
+            SecurePrefs.saveApiKey(getReactApplicationContext(), provider, changedApiKey);
         }
     }
 

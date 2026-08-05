@@ -7,6 +7,7 @@ import android.content.res.Configuration;
 import java.util.Locale;
 
 final class AppSettings {
+    static final String DEFAULT_PROVIDER = ApiProvider.OPENAI;
     static final String DEFAULT_BASE_URL = "https://api.openai.com/v1";
     static final String DEFAULT_MODEL = "gpt-5.6-luna";
     static final String ACTION_UI_LANGUAGE_CHANGED =
@@ -76,6 +77,8 @@ final class AppSettings {
         }
 
         preferences.edit()
+                .putString("provider", ApiProvider.normalize(
+                        preferences.getString("provider", DEFAULT_PROVIDER)))
                 .putString("ui_language", normalized(
                         preferences.getString("ui_language", "zh"),
                         UI_LANGUAGES,

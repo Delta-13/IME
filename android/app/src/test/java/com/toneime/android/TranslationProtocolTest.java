@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.Test;
 
@@ -74,5 +75,64 @@ public final class TranslationProtocolTest {
                 assertFalse(payload.getBoolean("store"));
             }
         }
+    }
+
+    @Test
+    public void claudeMessagesPayloadAndResponseStayCompatible() throws Exception {
+        TranslationProtocol.Request request = new TranslationProtocol.Request(
+                "ja",
+                "zh",
+                "zh",
+                "ご確認をお願いします。",
+                "boss",
+                "request",
+                4,
+                3,
+                3);
+        JSONObject payload = TranslationProtocol.buildClaudePayload(
+                "claude-sonnet-4-5",
+                request);
+
+        assertEquals(1024, payload.getInt("max_tokens"));
+        assertFalse(payload.has("store"));
+        assertEquals("user", payload.getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("role"));
+
+        String response = new JSONObject()
+                .put("content", new JSONArray().put(new JSONObject()
+                        .put("type", "text")
+                        .put("text", "{\"primary\":\"请您确认一下。\",\"alternatives\":[],\"warnings\":[]}")))
+                .toString();
+        TranslationProtocol.Result result = TranslationProtocol.parseClaudeApiResponse(response);
+        assertEquals("请您确认一下。", result.candidates.get(0).text);
+    }
+
+    @Test
+    public void nonOpenAiCompatiblePayloadDoesNotSendOpenAiStoreFlag() throws Exception {
+        TranslationProtocol.Request request = new TranslationProtocol.Request(
+                "zh",
+                "en",
+                "en",
+                "你好",
+                "friend",
+                "chat",
+                3,
+                3,
+                3);
+
+        JSONObject payload = TranslationProtocol.buildPayload(
+                ApiProvider.DEEPSEEK,
+                "deepseek-v4-flash",
+                request);
+        assertFalse(payload.has("store"));
+        assertTrue(payload.has("response_format"));
+
+        JSONObject kimiPayload = TranslationProtocol.buildPayload(
+                ApiProvider.KIMI,
+                "kimi-k3",
+                request);
+        assertFalse(kimiPayload.has("store"));
+        assertFalse(kimiPayload.has("response_format"));
     }
 }

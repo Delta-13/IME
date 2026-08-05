@@ -18,6 +18,15 @@ type UiLanguage = 'zh' | 'ja' | 'en';
 type LanguageCode = 'zh' | 'ja' | 'en' | 'ko' | 'de';
 type Relation = 'elder' | 'boss' | 'peer' | 'friend' | 'close_friend' | 'partner';
 type Scene = 'auto' | 'chat' | 'request' | 'apology' | 'thanks' | 'decline' | 'care';
+type ProviderId =
+  | 'openai'
+  | 'claude'
+  | 'qwen'
+  | 'kimi'
+  | 'minimax'
+  | 'deepseek'
+  | 'google'
+  | 'custom';
 
 type SettingsState = {
   uiLanguage: UiLanguage;
@@ -29,6 +38,7 @@ type SettingsState = {
   warmth: number;
   directness: number;
   overlayOpacity: number;
+  provider: ProviderId;
   baseUrl: string;
   model: string;
 };
@@ -80,6 +90,7 @@ const DEFAULTS: SettingsState = {
   warmth: 3,
   directness: 3,
   overlayOpacity: 90,
+  provider: 'openai',
   baseUrl: 'https://api.openai.com/v1',
   model: 'gpt-5.6-luna',
 };
@@ -119,6 +130,8 @@ const copy = {
     returnToApp: '替换原文并返回',
     safe: '点击候选后才会替换原文，不会自动发送。',
     apiSettings: 'API 与模型设置',
+    provider: '服务商',
+    providerHint: '切换服务商会填入推荐端点和模型；请改用该服务商的 API Key。',
     baseUrl: 'Base URL',
     model: '模型 ID',
     apiKey: 'API Key',
@@ -170,6 +183,8 @@ const copy = {
     returnToApp: '原文を置き換えて戻る',
     safe: '候補をタップした時だけ置き換えます。自動送信はしません。',
     apiSettings: 'API・モデル設定',
+    provider: 'プロバイダー',
+    providerHint: '切り替えると推奨エンドポイントとモデルが入ります。対応する API Key を入力してください。',
     baseUrl: 'Base URL',
     model: 'モデル ID',
     apiKey: 'API Key',
@@ -221,6 +236,8 @@ const copy = {
     returnToApp: 'Replace original and return',
     safe: 'Text is replaced only after you tap a candidate. Nothing is sent automatically.',
     apiSettings: 'API & model settings',
+    provider: 'Provider',
+    providerHint: 'Switching fills the recommended endpoint and model. Enter that provider’s API key.',
     baseUrl: 'Base URL',
     model: 'Model ID',
     apiKey: 'API Key',
@@ -258,9 +275,57 @@ const sceneNames: Record<UiLanguage, Record<Scene, string>> = {
   en: {auto: 'Auto', chat: 'Chat', request: 'Request', apology: 'Apology', thanks: 'Thanks', decline: 'Decline', care: 'Care'},
 };
 
+const providerPresets: Record<ProviderId, {baseUrl: string; model: string}> = {
+  openai: {baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.6-luna'},
+  claude: {baseUrl: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-5'},
+  qwen: {baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus'},
+  kimi: {baseUrl: 'https://api.moonshot.ai/v1', model: 'kimi-k3'},
+  minimax: {baseUrl: 'https://api.minimax.io/v1', model: 'MiniMax-M2.7'},
+  deepseek: {baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash'},
+  google: {
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    model: 'gemini-3.6-flash',
+  },
+  custom: {baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.6-luna'},
+};
+
+const providerNames: Record<UiLanguage, Record<ProviderId, string>> = {
+  zh: {
+    openai: 'OpenAI',
+    claude: 'Claude（Anthropic）',
+    qwen: '通义千问（Qwen）',
+    kimi: 'Kimi（月之暗面）',
+    minimax: 'MiniMax',
+    deepseek: 'DeepSeek',
+    google: 'Google AI（Gemini）',
+    custom: '自定义 OpenAI 兼容服务',
+  },
+  ja: {
+    openai: 'OpenAI',
+    claude: 'Claude (Anthropic)',
+    qwen: 'Qwen（通義千問）',
+    kimi: 'Kimi（月之暗面）',
+    minimax: 'MiniMax',
+    deepseek: 'DeepSeek',
+    google: 'Google AI (Gemini)',
+    custom: 'カスタム OpenAI 互換サービス',
+  },
+  en: {
+    openai: 'OpenAI',
+    claude: 'Claude (Anthropic)',
+    qwen: 'Qwen',
+    kimi: 'Kimi',
+    minimax: 'MiniMax',
+    deepseek: 'DeepSeek',
+    google: 'Google AI (Gemini)',
+    custom: 'Custom OpenAI-compatible API',
+  },
+};
+
 const languageCodes = Object.keys(languageNames.zh) as LanguageCode[];
 const relations = Object.keys(relationNames.zh) as Relation[];
 const scenes = Object.keys(sceneNames.zh) as Scene[];
+const providerIds = Object.keys(providerPresets) as ProviderId[];
 
 type Option<T extends string> = {value: T; label: string};
 
@@ -427,6 +492,10 @@ export default function App() {
   const apiKeyInput = useRef<TextInput>(null);
   const focusedInput = useRef<TextInput | null>(null);
   const t = copy[settings.uiLanguage];
+  const providerOptions = providerIds.map(value => ({
+    value,
+    label: providerNames[settings.uiLanguage][value],
+  }));
   const selectedText = result?.candidates[selectedCandidate]?.text ?? '';
 
   useEffect(() => {
@@ -442,6 +511,7 @@ export default function App() {
           warmth: state.warmth,
           directness: state.directness,
           overlayOpacity: state.overlayOpacity,
+          provider: state.provider,
           baseUrl: state.baseUrl,
           model: state.model,
         });
@@ -549,6 +619,23 @@ export default function App() {
     setStatus('ready');
   };
 
+  const changeProvider = (provider: ProviderId) => {
+    if (provider === settings.provider) {
+      return;
+    }
+    const preset = providerPresets[provider];
+    setSettings(current => ({
+      ...current,
+      provider,
+      baseUrl: preset.baseUrl,
+      model: preset.model,
+    }));
+    setApiKey('');
+    setApiKeyChanged(false);
+    setHasApiKey(false);
+    clearResult();
+  };
+
   const changeUiLanguage = (language: UiLanguage) => {
     if (language === settings.uiLanguage) {
       return;
@@ -592,6 +679,7 @@ export default function App() {
       }
       setResult(translation);
       setSelectedCandidate(0);
+      setHasApiKey(true);
       setStatus('complete');
     } catch (error) {
       const code = (error as {code?: string}).code;
@@ -618,6 +706,9 @@ export default function App() {
   const saveApiSettings = async () => {
     try {
       await save(settings, true);
+      void ToneIme.loadState()
+        .then(state => setHasApiKey(state.hasApiKey))
+        .catch(() => undefined);
       setMessage(t.saved);
       setStatus('complete');
     } catch {
@@ -971,6 +1062,14 @@ export default function App() {
             </Pressable>
             {apiExpanded && (
               <View style={styles.apiBody}>
+                <SelectField
+                  label={t.provider}
+                  onChange={changeProvider}
+                  options={providerOptions}
+                  testID="provider"
+                  value={settings.provider}
+                />
+                <Text style={styles.providerHint}>{t.providerHint}</Text>
                 <Text style={styles.fieldLabel}>{t.baseUrl}</Text>
                 <TextInput
                   autoCapitalize="none"
@@ -979,7 +1078,7 @@ export default function App() {
                   onBlur={() => blurInput(baseUrlInput.current)}
                   onChangeText={value => updateSetting('baseUrl', value)}
                   onFocus={() => focusInput(baseUrlInput.current)}
-                  placeholder="https://api.openai.com/v1"
+                  placeholder={providerPresets[settings.provider].baseUrl}
                   placeholderTextColor="#A0A1AF"
                   ref={baseUrlInput}
                   style={styles.textField}
@@ -992,7 +1091,7 @@ export default function App() {
                   onBlur={() => blurInput(modelInput.current)}
                   onChangeText={value => updateSetting('model', value)}
                   onFocus={() => focusInput(modelInput.current)}
-                  placeholder="gpt-5.6-luna"
+                  placeholder={providerPresets[settings.provider].model}
                   placeholderTextColor="#A0A1AF"
                   ref={modelInput}
                   style={styles.textField}
@@ -1383,6 +1482,13 @@ const styles = StyleSheet.create({
   },
   apiToggle: {color: colors.accent, fontSize: 21, fontWeight: '500'},
   apiBody: {paddingBottom: 17, paddingHorizontal: 17},
+  providerHint: {
+    color: colors.muted,
+    fontSize: 10,
+    lineHeight: 15,
+    marginBottom: 12,
+    marginTop: 5,
+  },
   textField: {
     backgroundColor: '#FAFAFD',
     borderColor: '#E2E1EA',

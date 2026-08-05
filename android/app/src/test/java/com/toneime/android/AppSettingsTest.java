@@ -59,4 +59,16 @@ public final class AppSettingsTest {
                 flags & WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL);
         assertEquals(0, flags & WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
     }
+
+    @Test
+    public void providerPresetsNormalizeAndKeepSecureEndpoints() {
+        assertEquals(ApiProvider.OPENAI, ApiProvider.normalize("unknown"));
+        assertEquals(ApiProvider.CLAUDE, ApiProvider.normalize(ApiProvider.CLAUDE));
+        assertEquals("https://api.anthropic.com/v1",
+                ApiProvider.defaultBaseUrl(ApiProvider.CLAUDE));
+        assertEquals("https://api.deepseek.com",
+                ApiProvider.defaultBaseUrl(ApiProvider.DEEPSEEK));
+        assertEquals("deepseek-v4-flash",
+                ApiProvider.defaultModel(ApiProvider.DEEPSEEK));
+    }
 }

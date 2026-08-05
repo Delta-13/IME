@@ -14,8 +14,10 @@ Android 自用 MVP，不替换现有中文输入法：
 - 浮窗可直接调整方向、关系、场景和三个语气强度；停止输入约 0.9 秒后生成推荐译文，点击译文才会替换整框原文。
 - 从支持 Android“处理文本”的输入框选中文字，可直接打开 ToneIME，确认后替换原文并返回。
 - 也可通过系统分享菜单把文字发送给 ToneIME；译文只能显式复制、返回或打开分享菜单，绝不自动发送。
-- API Key 使用 Android Keystore 的 AES-GCM 密钥加密后保存在应用私有偏好中。
-- 原文和译文不落盘；浮窗不读取密码框和 ToneIME 自己的输入框；API 请求使用 `store:false`，只允许 HTTPS。
+- 可选择 OpenAI、Claude、Qwen、Kimi、MiniMax、DeepSeek、Google AI（Gemini）或自定义 OpenAI 兼容 HTTPS 服务；切换后会填入可编辑的推荐端点和模型。
+- Claude 使用原生 Messages API；其余预设使用 OpenAI 兼容的 Chat Completions API。
+- API Key 按服务商隔离，使用 Android Keystore 的 AES-GCM 密钥加密后保存在应用私有偏好中。
+- 原文和译文不落盘；浮窗不读取密码框和 ToneIME 自己的输入框；OpenAI 请求使用 `store:false`，所有 API 地址只允许 HTTPS。
 
 ## 构建
 

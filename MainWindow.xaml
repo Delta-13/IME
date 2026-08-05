@@ -261,10 +261,14 @@
                                    FontSize="18"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,12"
-                                   Text="OpenAI 兼容 API"/>
+                                   Text="AI API 与模型"/>
 
-                        <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Base URL"/>
-                        <TextBox x:Name="BaseUrlBox" Grid.Row="1" Grid.Column="1" Margin="0,4"/>
+                        <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="服务商 / Base URL"/>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,4">
+                            <ComboBox x:Name="ProviderBox"
+                                      SelectionChanged="OnProviderChanged"/>
+                            <TextBox x:Name="BaseUrlBox" Margin="0,6,0,0"/>
+                        </StackPanel>
 
                         <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="模型 ID"/>
                         <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,4">
@@ -272,10 +276,11 @@
                                       IsEditable="True"
                                       IsTextSearchEnabled="True"/>
                             <TextBlock Margin="2,4,0,0"
+                                       x:Name="ProviderHintText"
                                        FontSize="12"
                                        Foreground="#64748B"
                                        TextWrapping="Wrap"
-                                       Text="推荐文字低延迟：gpt-5.6-luna；Realtime 文字：gpt-realtime-2.1-mini。gpt-realtime-translate 仅支持音频输入。"/>
+                                       Text="选择服务商后会填入推荐端点和模型；请使用对应服务商的 API Key。"/>
                         </StackPanel>
 
                         <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="API Key"/>
@@ -322,7 +327,7 @@
 
                         <StackPanel Grid.Row="10" Grid.ColumnSpan="2" Margin="0,18,0,0">
                             <CheckBox x:Name="ScreenConsentBox"
-                                      Content="我选择启用读屏：只绑定一个 LINE 窗口；本机 OCR 截图不上传；点击 OpenAI OCR 时仅将框选截图发送到所配置 API，截图不保存。"/>
+                                      Content="我选择启用读屏：只绑定一个 LINE 窗口；本机 OCR 截图不上传；点击云端 OCR 时仅将框选截图发送到所配置 API，截图不保存。"/>
                             <TextBlock Margin="22,6,0,0"
                                        Foreground="#9A3412"
                                        TextWrapping="Wrap"

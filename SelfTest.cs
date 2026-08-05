@@ -46,6 +46,16 @@ internal static class SelfTest
         Assert(
             !OpenAiCompatibleClient.IsRealtimeConversationModel("gpt-realtime-translate"),
             "音频翻译模型不进入文字会话");
+        Assert(
+            ApiProviders.UsesClaudeMessages(ApiProviders.Claude),
+            "Claude 使用原生 Messages API");
+        Assert(
+            ApiProviders.Get(ApiProviders.Google).BaseUrl.StartsWith("https://", StringComparison.Ordinal),
+            "Google API 端点使用 HTTPS");
+        Assert(
+            !ApiProviders.SupportsNoStore(ApiProviders.Kimi) &&
+            ApiProviders.SupportsJsonResponseFormat(ApiProviders.DeepSeek),
+            "服务商请求字段分流");
 
         var ocrLines = OpenAiCompatibleClient.ParseOcrLines(
             """{"lines":["10:20","今日はありがとう","明天见","Settings"]}""");

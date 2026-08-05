@@ -17,16 +17,23 @@ final class OpenAiClient {
     private static final int MAX_RESPONSE_BYTES = 1_048_576;
 
     TranslationProtocol.Result translate(
+            String provider,
             String baseUrl,
             String model,
             String apiKey,
             TranslationProtocol.Request request) throws Exception {
-        URL endpoint = new URL(baseUrl.replaceAll("/+$", "") + "/chat/completions");
+        String normalizedProvider = ApiProvider.normalize(provider);
+        String path = ApiProvider.usesClaudeMessages(normalizedProvider)
+                ? "/messages"
+                : "/chat/completions";
+        URL endpoint = new URL(baseUrl.trim().replaceAll("/+$", "") + path);
         if (!"https".equalsIgnoreCase(endpoint.getProtocol())) {
             throw new IllegalArgumentException("Android 端只允许 HTTPS API 地址，以免泄露 API Key。");
         }
 
-        byte[] requestBytes = TranslationProtocol.buildPayload(model, request)
+        byte[] requestBytes = (ApiProvider.usesClaudeMessages(normalizedProvider)
+                ? TranslationProtocol.buildClaudePayload(model, request)
+                : TranslationProtocol.buildPayload(normalizedProvider, model, request))
                 .toString()
                 .getBytes(StandardCharsets.UTF_8);
         HttpsURLConnection connection = (HttpsURLConnection) endpoint.openConnection();
@@ -38,7 +45,13 @@ final class OpenAiClient {
             connection.setFixedLengthStreamingMode(requestBytes.length);
             connection.setRequestProperty("Accept", "application/json");
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-            if (!apiKey.trim().isEmpty()) {
+            if (ApiProvider.usesClaudeMessages(normalizedProvider)) {
+                if (apiKey.trim().isEmpty()) {
+                    throw new IllegalArgumentException("Claude API Key is required.");
+                }
+                connection.setRequestProperty("x-api-key", apiKey.trim());
+                connection.setRequestProperty("anthropic-version", "2023-06-01");
+            } else if (!apiKey.trim().isEmpty()) {
                 connection.setRequestProperty("Authorization", "Bearer " + apiKey.trim());
             }
 
@@ -55,7 +68,9 @@ final class OpenAiClient {
                 throw new IOException("模型请求失败（" + status + "）：" + providerError(body));
             }
 
-            return TranslationProtocol.parseApiResponse(body);
+            return ApiProvider.usesClaudeMessages(normalizedProvider)
+                    ? TranslationProtocol.parseClaudeApiResponse(body)
+                    : TranslationProtocol.parseApiResponse(body);
         } catch (SocketTimeoutException exception) {
             throw new IOException("模型请求超时，请重试。", exception);
         } finally {

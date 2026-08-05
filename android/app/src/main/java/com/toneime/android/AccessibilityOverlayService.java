@@ -614,9 +614,11 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         }
 
         SharedPreferences preferences = AppSettings.preferences(this);
+        String provider = ApiProvider.normalize(
+                preferences.getString("provider", AppSettings.DEFAULT_PROVIDER));
         String endpoint = preferences.getString("base_url", AppSettings.DEFAULT_BASE_URL);
         String model = preferences.getString("model", AppSettings.DEFAULT_MODEL);
-        String apiKey = SecurePrefs.loadApiKey(this);
+        String apiKey = SecurePrefs.loadApiKey(this, provider);
         if (endpoint == null
                 || !endpoint.startsWith("https://")
                 || model == null
@@ -642,7 +644,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         executor.execute(() -> {
             try {
                 TranslationProtocol.Result result = new OpenAiClient()
-                        .translate(endpoint, model, apiKey, request);
+                        .translate(provider, endpoint, model, apiKey, request);
                 String primary = result.candidates.get(0).text;
                 handler.post(() -> showTranslation(requestGeneration, source, primary));
             } catch (Exception exception) {

@@ -13,23 +13,15 @@ final class TranslationProtocol {
     }
 
     static JSONObject buildPayload(String model, Request request) throws JSONException {
-        JSONObject style = new JSONObject()
-                .put("politeness", request.politeness)
-                .put("warmth", request.warmth)
-                .put("directness", request.directness);
-        JSONObject user = new JSONObject()
-                .put("sourceLanguage", request.sourceLanguage)
-                .put("targetLanguage", request.targetLanguage)
-                .put("uiLanguage", request.uiLanguage)
-                .put("source", request.source)
-                .put("relation", request.relation)
-                .put("scene", request.scene)
-                .put("style", style);
+        return buildPayload(ApiProvider.OPENAI, model, request);
+    }
 
-        return new JSONObject()
+    static JSONObject buildPayload(
+            String provider,
+            String model,
+            Request request) throws JSONException {
+        JSONObject payload = new JSONObject()
                 .put("model", model)
-                .put("store", false)
-                .put("response_format", new JSONObject().put("type", "json_object"))
                 .put("messages", new JSONArray()
                         .put(new JSONObject()
                                 .put("role", "system")
@@ -39,7 +31,43 @@ final class TranslationProtocol {
                                         request.uiLanguage)))
                         .put(new JSONObject()
                                 .put("role", "user")
-                                .put("content", user.toString())));
+                                .put("content", userPayload(request).toString())));
+        if (ApiProvider.supportsJsonResponseFormat(provider)) {
+            payload.put("response_format", new JSONObject().put("type", "json_object"));
+        }
+        if (ApiProvider.supportsNoStore(provider)) {
+            payload.put("store", false);
+        }
+        return payload;
+    }
+
+    static JSONObject buildClaudePayload(String model, Request request) throws JSONException {
+        return new JSONObject()
+                .put("model", model)
+                .put("max_tokens", 1024)
+                .put("system", systemPrompt(
+                        request.sourceLanguage,
+                        request.targetLanguage,
+                        request.uiLanguage))
+                .put("messages", new JSONArray()
+                        .put(new JSONObject()
+                                .put("role", "user")
+                                .put("content", userPayload(request).toString())));
+    }
+
+    private static JSONObject userPayload(Request request) throws JSONException {
+        JSONObject style = new JSONObject()
+                .put("politeness", request.politeness)
+                .put("warmth", request.warmth)
+                .put("directness", request.directness);
+        return new JSONObject()
+                .put("sourceLanguage", request.sourceLanguage)
+                .put("targetLanguage", request.targetLanguage)
+                .put("uiLanguage", request.uiLanguage)
+                .put("source", request.source)
+                .put("relation", request.relation)
+                .put("scene", request.scene)
+                .put("style", style);
     }
 
     static Result parseApiResponse(String body) throws JSONException {
@@ -53,6 +81,26 @@ final class TranslationProtocol {
                 .getJSONObject("message")
                 .optString("content", "");
         return parseContent(content);
+    }
+
+    static Result parseClaudeApiResponse(String body) throws JSONException {
+        JSONObject root = new JSONObject(body);
+        JSONArray content = root.optJSONArray("content");
+        if (content == null || content.length() == 0) {
+            throw new JSONException("Claude 响应中没有文本内容。");
+        }
+
+        StringBuilder text = new StringBuilder();
+        for (int index = 0; index < content.length(); index++) {
+            JSONObject block = content.optJSONObject(index);
+            if (block != null && "text".equals(block.optString("type", ""))) {
+                text.append(block.optString("text", ""));
+            }
+        }
+        if (text.toString().trim().isEmpty()) {
+            throw new JSONException("Claude 响应中没有文本内容。");
+        }
+        return parseContent(text.toString());
     }
 
     static Result parseContent(String content) throws JSONException {

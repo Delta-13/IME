@@ -14,9 +14,6 @@ public partial class MainWindow : Window
     private static readonly string[] Directions = ["中→日", "日→中"];
     private static readonly string[] Relations = ["长辈", "领导", "平辈", "朋友", "好朋友", "情侣"];
     private static readonly string[] Scenes = ["自动", "闲聊", "请求", "道歉", "感谢", "拒绝", "关心"];
-    private static readonly string[] Models =
-        ["gpt-5.6-luna", "gpt-realtime-2.1-mini", "gpt-realtime-2.1", "gpt-4.1-mini", "gpt-5.6-terra"];
-
     private readonly DispatcherTimer _debounceTimer;
     private readonly ObservableCollection<ReaderItem> _readerItems = [];
     private readonly LineReaderService _reader = new();
@@ -36,11 +33,13 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         _settings = SettingsStore.Load();
-        _apiKey = SettingsStore.LoadApiKey();
+        _apiKey = SettingsStore.LoadApiKey(_settings.Provider);
         DirectionBox.ItemsSource = Directions;
         RelationBox.ItemsSource = Relations;
         SceneBox.ItemsSource = Scenes;
-        ModelBox.ItemsSource = Models;
+        ProviderBox.ItemsSource = ApiProviders.Presets;
+        ProviderBox.DisplayMemberPath = nameof(ProviderPreset.DisplayName);
+        ProviderBox.SelectedValuePath = nameof(ProviderPreset.Id);
         ReaderList.ItemsSource = _readerItems;
         LoadControls();
 
@@ -81,6 +80,9 @@ public partial class MainWindow : Window
 
     private void LoadControls()
     {
+        var provider = ApiProviders.Get(_settings.Provider);
+        ProviderBox.SelectedValue = provider.Id;
+        UpdateProviderControls(provider, applyDefaults: false);
         BaseUrlBox.Text = _settings.BaseUrl;
         ModelBox.Text = _settings.Model;
         ApiKeyBox.Password = _apiKey;
@@ -95,6 +97,39 @@ public partial class MainWindow : Window
         ScreenConsentBox.IsChecked = _settings.ScreenReadingConsent;
         UpdateStyleSummary();
         _loadingControls = false;
+    }
+
+    private void OnProviderChanged(
+        object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_loadingControls)
+        {
+            return;
+        }
+
+        UpdateProviderControls(SelectedProvider, applyDefaults: true);
+        _apiKey = SettingsStore.LoadApiKey(SelectedProvider.Id);
+        ApiKeyBox.Password = _apiKey;
+        AppStatusText.Text = string.IsNullOrWhiteSpace(_apiKey)
+            ? "已切换服务商；请填写该服务商的 API Key 后保存。"
+            : "已切换服务商；已载入该服务商的 API Key。";
+        InvalidateOutgoingResult();
+    }
+
+    private ProviderPreset SelectedProvider => ApiProviders.Get(ProviderBox.SelectedValue?.ToString());
+
+    private void UpdateProviderControls(ProviderPreset provider, bool applyDefaults)
+    {
+        ModelBox.ItemsSource = provider.Models;
+        ProviderHintText.Text = provider.Hint;
+        if (!applyDefaults)
+        {
+            return;
+        }
+
+        BaseUrlBox.Text = provider.BaseUrl;
+        ModelBox.Text = provider.DefaultModel;
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -436,6 +471,7 @@ public partial class MainWindow : Window
 
     private AppSettings ReadSettingsFromControls() => new()
     {
+        Provider = SelectedProvider.Id,
         BaseUrl = BaseUrlBox.Text.Trim(),
         Model = ModelBox.Text.Trim(),
         Direction = DirectionBox.SelectedItem?.ToString() ?? "中→日",

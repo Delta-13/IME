@@ -7,7 +7,8 @@ namespace ToneIME;
 
 internal static class SettingsStore
 {
-    private const string CredentialTarget = "ToneIME/OpenAICompatibleApiKey";
+    private const string LegacyCredentialTarget = "ToneIME/OpenAICompatibleApiKey";
+    private const string CredentialTargetPrefix = "ToneIME/ApiKey/";
     private static readonly string DirectoryPath =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ToneIME");
     private static readonly string SettingsPath = Path.Combine(DirectoryPath, "settings.json");
@@ -31,10 +32,30 @@ internal static class SettingsStore
     {
         Directory.CreateDirectory(DirectoryPath);
         File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, JsonOptions));
-        CredentialManager.Save(CredentialTarget, apiKey);
+        CredentialManager.Save(CredentialTarget(settings.Provider), apiKey);
+        if (ApiProviders.OpenAi.Equals(
+                ApiProviders.Normalize(settings.Provider),
+                StringComparison.Ordinal))
+        {
+            CredentialManager.Save(LegacyCredentialTarget, "");
+        }
     }
 
-    public static string LoadApiKey() => CredentialManager.Load(CredentialTarget);
+    public static string LoadApiKey(string? provider)
+    {
+        var normalized = ApiProviders.Normalize(provider);
+        var apiKey = CredentialManager.Load(CredentialTarget(normalized));
+        if (!string.IsNullOrWhiteSpace(apiKey) ||
+            !ApiProviders.OpenAi.Equals(normalized, StringComparison.Ordinal))
+        {
+            return apiKey;
+        }
+
+        return CredentialManager.Load(LegacyCredentialTarget);
+    }
+
+    private static string CredentialTarget(string? provider) =>
+        CredentialTargetPrefix + ApiProviders.Normalize(provider);
 }
 
 internal static class CredentialManager
