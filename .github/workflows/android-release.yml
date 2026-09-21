@@ -69,7 +69,7 @@ jobs:
           npm run typecheck
 
       - name: Install Android SDK components
-        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006'
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006"'
 
       - name: Test, lint, and build release
         working-directory: android
@@ -126,7 +126,7 @@ jobs:
           path: artifacts
 
       - name: Install signing tools
-        run: sdkmanager 'build-tools;36.0.0'
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"'
 
       - name: Sign and verify APK
         env:
