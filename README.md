@@ -49,6 +49,8 @@ Choose a provider in API settings; ToneIME fills an editable recommended endpoin
 
 ### Quick start
 
+**Android download** — install the signed APK from the [latest GitHub Release](https://github.com/Delta-13/IME/releases/latest) (Android 8.0+). Releases are built, checked, and signed by [GitHub Actions](https://github.com/Delta-13/IME/actions/workflows/android-release.yml); Metro is not required. An older debug build must be uninstalled first, which clears its settings and saved API keys.
+
 **Windows** — requires the .NET 10 SDK.
 
 ```powershell
@@ -108,6 +110,8 @@ ToneIME 是一个面向中文、日文与英文沟通的隐私优先翻译助手
 
 ### 快速开始
 
+**Android 下载**：在 [最新 GitHub Release](https://github.com/Delta-13/IME/releases/latest) 下载正式签名的 APK（Android 8.0+）。安装包由 [GitHub Actions](https://github.com/Delta-13/IME/actions/workflows/android-release.yml) 检查、构建并签名，无需 Metro。首次从旧调试版迁移时需要卸载旧版，这会清除其设置和保存的 API Key。
+
 Windows 需要 .NET 10 SDK；Android 需要 Node.js 22.11+、JDK 17+、Android SDK Platform 36 和 Build Tools 36.0.0。请运行上方 English 部分的命令构建和验证。调试 APK 输出到 `android/app/build/outputs/apk/debug/app-debug.apk`，具体说明见 [Android 构建指南](android/README.md)。
 
 ### 隐私与安全
@@ -141,6 +145,8 @@ ToneIME は、中国語・日本語・英語でのやり取りを支援する、
 API 設定でプロバイダーを選択すると、編集可能な推奨エンドポイントとモデルが入力されます。Claude にはネイティブ Messages API を使用し、Qwen、Kimi、MiniMax、DeepSeek、Google AI（Gemini）、カスタムサービスには OpenAI 互換 Chat Completions エンドポイントを使用します。選択中のプロバイダーが発行した API Key を入力してください。
 
 ### はじめに
+
+**Android のダウンロード**：[最新の GitHub Release](https://github.com/Delta-13/IME/releases/latest) から署名済み APK を入手できます（Android 8.0 以降）。[GitHub Actions](https://github.com/Delta-13/IME/actions/workflows/android-release.yml) で検証・ビルド・署名され、Metro は不要です。旧 debug 版から移行する際は旧版をアンインストールしてください。設定と保存済み API キーは削除されます。
 
 Windows には .NET 10 SDK、Android には Node.js 22.11+、JDK 17+、Android SDK Platform 36、Build Tools 36.0.0 が必要です。ビルドと検証には English セクションのコマンドを実行してください。debug APK は `android/app/build/outputs/apk/debug/app-debug.apk` に出力されます。詳しくは [Android ビルドガイド](android/README.md) を参照してください。
 

@@ -17,3 +17,8 @@ android/dist/
 node_modules/
 .metro-health-check*
 npm-debug.log*
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.dpapi.xml

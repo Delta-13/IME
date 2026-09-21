@@ -37,6 +37,22 @@ cd android
 
 调试 APK 输出到 `app\build\outputs\apk\debug\app-debug.apk`。
 
+## GitHub Actions 发布
+
+在 [Releases](https://github.com/Delta-13/IME/releases/latest) 下载正式签名的 APK，支持 Android 8.0+。APK 已包含 JS Bundle，不需要 Metro。旧调试版使用不同证书，首次迁移到正式版时需要先卸载旧版（会清除本地设置和保存的 API Key）；后续正式版保持同一签名，可直接更新。
+
+工作流 `.github/workflows/android-release.yml` 在 main 推送、Pull Request 和手动运行时执行 TypeScript 检查、Release 单元测试、Lint 与 Release 构建。推送匹配应用版本的 `v*` 标签时，检查成功后会另外签名并发布 APK、`SHA256SUMS` 和公开签名指纹。签名凭据只提供给独立发布任务，不提供给依赖安装和构建任务。
+
+仓库 Actions Secrets：
+
+- `ANDROID_KEYSTORE_BASE64`：固定 PKCS12 发布密钥库的 Base64 内容。
+- `ANDROID_KEYSTORE_PASSWORD`：密钥库与私钥的相同密码。
+- `ANDROID_KEY_ALIAS`：发布私钥别名。
+
+发布新版本时，同步更新 `package.json`、`package-lock.json` 和 `app/build.gradle` 的版本号，递增 Android `versionCode`，并新增 `docs/releases/<版本>.md` 三语说明。提交后推送对应的标签，例如 `git tag v0.3.2`、`git push origin v0.3.2`。Actions 使用 JDK 21、Node.js 22、SDK 36、Build Tools 36.0.0 和 NDK 27.1.12297006。未签名的中间产物仅用于 CI，正式安装包位于 Release 页面。
+
+本地签名备份位于被忽略的 `.tools/android-signing/`；密钥库有密码保护，密码备份通过 Windows DPAPI 加密，仅生成它的 Windows 用户能够解密。请妥善保管固定密钥，后续版本需要它来保持覆盖安装能力。密钥库和密码不得提交到 Git。
+
 ## 当前范围
 
-当前 0.3.1 已验证 React Native 三语主界面、五语翻译、系统选中文本，以及支持透明度和拖拽缩放的原生无障碍浮窗。浮窗及下拉菜单之外的区域保持可操作，不使用整屏背景模糊。尚未接入 Trime/Rime，也不会自动发送消息。
+当前 0.3.2 已验证 React Native 三语主界面、五语翻译、系统选中文本，以及支持透明度和拖拽缩放的原生无障碍浮窗。浮窗及下拉菜单之外的区域保持可操作，不使用整屏背景模糊。尚未接入 Trime/Rime，也不会自动发送消息。

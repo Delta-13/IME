@@ -1,0 +1,170 @@
+name: Android CI and Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  build:
+    name: Check and build release APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    env:
+      NODE_OPTIONS: --max-old-space-size=2048
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d # v4
+
+      - name: Validate version and release notes
+        id: version
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, appendFileSync, existsSync } from 'node:fs';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+          const gradle = readFileSync('android/app/build.gradle', 'utf8');
+          const version = pkg.version;
+          if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Expected a stable semantic version');
+          if (lock.version !== version || lock.packages[''].version !== version ||
+              gradle.match(/versionName\s*=\s*"([^"]+)"/)?.[1] !== version) {
+            throw new Error('package.json, lockfile, and Android versions must match');
+          }
+          if (process.env.GITHUB_REF_TYPE === 'tag' && process.env.GITHUB_REF_NAME !== `v${version}`) {
+            throw new Error('Release tag must match the application version');
+          }
+          if (!existsSync(`docs/releases/${version}.md`)) throw new Error('Missing release notes');
+          appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
+          NODE
+
+      - name: Install dependencies and check TypeScript
+        run: |
+          npm ci
+          npm run typecheck
+
+      - name: Install Android SDK components
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006'
+
+      - name: Test, lint, and build release
+        working-directory: android
+        run: bash ./gradlew --no-daemon --max-workers=2 testReleaseUnitTest lintRelease assembleRelease
+
+      - name: Verify standalone release and prepare artifacts
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          apk=android/app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s "$apk"
+          unzip -l "$apk" | grep 'assets/index.android.bundle'
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > apk-metadata.txt
+          grep "package: name='com.toneime.android'" apk-metadata.txt
+          grep "versionName='$RELEASE_VERSION'" apk-metadata.txt
+          if grep -q 'application-debuggable' apk-metadata.txt; then
+            echo 'Refusing to publish a debuggable APK' >&2
+            exit 1
+          fi
+          mkdir artifacts
+          cp "$apk" artifacts/app-release-unsigned.apk
+          cp "docs/releases/$RELEASE_VERSION.md" artifacts/RELEASE_NOTES.md
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-release-unsigned
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload test and lint reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-check-reports
+          path: android/app/build/reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish:
+    name: Sign and publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: android-release-unsigned
+          path: artifacts
+
+      - name: Install signing tools
+        run: sdkmanager 'build-tools;36.0.0'
+
+      - name: Sign and verify APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          test -n "$KEYSTORE_BASE64" && test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS"
+          umask 077
+          keystore="$RUNNER_TEMP/toneime-release.p12"
+          trap 'rm -f "$keystore"' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          mkdir release
+          apk="release/ToneIME-$RELEASE_VERSION-android.apk"
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          "$tools/zipalign" -P 16 -f 4 artifacts/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
+          "$tools/apksigner" sign --ks "$keystore" --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
+            --out "$apk" "$RUNNER_TEMP/aligned.apk"
+          "$tools/apksigner" verify --verbose --print-certs "$apk" > release/SIGNING-CERTIFICATE.txt
+          "$tools/zipalign" -c -P 16 4 "$apk"
+          (cd release && sha256sum "ToneIME-$RELEASE_VERSION-android.apk" > SHA256SUMS)
+
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          # A draft keeps partially uploaded assets out of the public release.
+          if gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' > existing-release.txt 2>/dev/null; then
+            if [ "$(cat existing-release.txt)" != true ]; then
+              echo 'This release is already published; create a new version instead.' >&2
+              exit 1
+            fi
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft \
+              --title "ToneIME $RELEASE_TAG · Android" --notes-file artifacts/RELEASE_NOTES.md
+          fi
+          gh release upload "$RELEASE_TAG" release/*.apk release/SHA256SUMS release/SIGNING-CERTIFICATE.txt --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest

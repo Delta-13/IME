@@ -3,7 +3,7 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 react {
-    // ToneIME distributes a standalone debug APK, so debug must include its JS bundle.
+    // Local debug builds also run standalone without a Metro server.
     debuggableVariants = []
     autolinkLibrariesWithApp()
 }
@@ -18,8 +18,8 @@ android {
         applicationId = "com.toneime.android"
         minSdk = rootProject.ext.minSdkVersion
         targetSdk = rootProject.ext.targetSdkVersion
-        versionCode = 4
-        versionName = "0.3.1"
+        versionCode = 5
+        versionName = "0.3.2"
     }
 
     buildTypes {
