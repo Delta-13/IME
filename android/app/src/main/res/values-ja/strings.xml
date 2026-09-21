@@ -72,4 +72,23 @@
         <item>断り</item>
         <item>気遣い</item>
     </string-array>
+    <string name="overlay_timing_current">%1$s · %2$s</string>
+    <string name="overlay_timing_total">リクエスト合計 %1$s</string>
+    <string name="overlay_timing_failed">失敗 · %1$s</string>
+    <string name="overlay_timing_cancelled">リクエストを中止しました</string>
+    <string name="overlay_timing_queue">順番待ち</string>
+    <string name="overlay_timing_prepare">準備</string>
+    <string name="overlay_timing_dns">DNS</string>
+    <string name="overlay_timing_connect">接続</string>
+    <string name="overlay_timing_tls">TLS</string>
+    <string name="overlay_timing_upload">送信</string>
+    <string name="overlay_timing_wait">応答ヘッダー待ち</string>
+    <string name="overlay_timing_receive">受信</string>
+    <string name="overlay_timing_parse">解析</string>
+    <string name="overlay_timing_attempts">接続試行 %1$d 回</string>
+    <string name="overlay_timing_reused">接続を再利用</string>
+    <string name="overlay_timing_skipped">省略</string>
+    <string name="overlay_timing_sub_ms">&lt;1 ms</string>
+    <string name="overlay_timing_ms">%1$d ms</string>
+    <string name="overlay_timing_seconds">%1$.2f s</string>
 </resources>

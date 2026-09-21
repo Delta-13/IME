@@ -116,11 +116,23 @@
                     android:layout_marginStart="5dp"
                     android:layout_weight="1"
                     android:ellipsize="end"
-                    android:maxLines="1"
+                    android:maxLines="2"
                     android:text="@string/overlay_connection_idle"
                     android:textColor="@color/tone_muted"
                     android:textSize="10sp" />
             </LinearLayout>
+
+            <TextView
+                android:id="@+id/overlay_connection_timing"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:lineSpacingExtra="2dp"
+                android:textColor="@color/tone_muted"
+                android:textSize="10sp"
+                android:visibility="gone" />
 
             <LinearLayout
                 android:layout_width="match_parent"

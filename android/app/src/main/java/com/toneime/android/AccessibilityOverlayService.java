@@ -49,6 +49,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
     private TextView direction;
     private TextView settingsSummary;
     private TextView connectionStatus;
+    private OverlayTimingDisplay timingDisplay;
     private TextView candidate;
     private int politeness = 3;
     private int warmth = 3;
@@ -276,6 +277,8 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         direction = overlay.findViewById(R.id.overlay_direction);
         settingsSummary = overlay.findViewById(R.id.overlay_settings_summary);
         connectionStatus = overlay.findViewById(R.id.overlay_connection_status);
+        timingDisplay = new OverlayTimingDisplay(handler, connectionStatus,
+                overlay.findViewById(R.id.overlay_connection_timing));
         candidate = overlay.findViewById(R.id.overlay_candidate);
     }
 
@@ -399,7 +402,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         compactOverlay = nextCompact;
         serviceTitle.setVisibility(nextCompact ? View.GONE : View.VISIBLE);
         settingsSummary.setMaxLines(nextCompact ? 2 : 1);
-        connectionStatus.setMaxLines(nextCompact ? 2 : 1);
+        connectionStatus.setMaxLines(2);
         candidate.setMaxLines(nextCompact ? 4 : 5);
     }
 
@@ -732,48 +735,24 @@ public final class AccessibilityOverlayService extends AccessibilityService {
                 directness);
         candidate.setText(R.string.overlay_status_translating);
         candidate.setEnabled(false);
-        connectionStatus.setText(R.string.overlay_connection_sending);
         OpenAiClient client = new OpenAiClient();
         activeClient = client;
+        // Start before submit to include worker-queue time, excluding the input debounce.
+        RequestTiming timing = new RequestTiming(SystemClock::elapsedRealtimeNanos);
         activeRequest = executor.submit(() -> {
             if (requestGeneration != generation || Thread.currentThread().isInterrupted()) {
                 return;
             }
             try {
                 TranslationProtocol.Result result = client.translate(
-                        provider, endpoint, model, apiKey, request,
-                        new OpenAiClient.ProgressListener() {
-                            @Override
-                            public void onSending() {
-                                handler.post(() -> showConnectionProgress(
-                                        requestGeneration, source,
-                                        R.string.overlay_connection_sending));
-                            }
-
-                            @Override
-                            public void onWaitingForResponse() {
-                                handler.post(() -> showConnectionProgress(
-                                        requestGeneration, source,
-                                        R.string.overlay_connection_waiting_reply));
-                            }
-                        });
+                        provider, endpoint, model, apiKey, request, timing);
                 String primary = result.candidates.get(0).text;
                 handler.post(() -> showTranslation(requestGeneration, source, primary));
             } catch (Exception exception) {
                 handler.post(() -> showTranslationError(requestGeneration, source));
             }
         });
-    }
-
-    private void showConnectionProgress(
-            int requestGeneration,
-            String source,
-            int statusResource) {
-        if (overlay != null
-                && requestGeneration == generation
-                && source.equals(observedSource)) {
-            connectionStatus.setText(statusResource);
-        }
+        timingDisplay.start(timing);
     }
 
     private void showTranslation(int requestGeneration, String source, String translation) {
@@ -789,6 +768,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         candidate.setText(translation);
         candidate.setEnabled(true);
         connectionStatus.setText(R.string.overlay_connection_ready);
+        timingDisplay.refresh();
     }
 
     private void showTranslationError(
@@ -804,6 +784,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         candidate.setText(R.string.error_translation_failed);
         candidate.setEnabled(false);
         connectionStatus.setText(R.string.overlay_connection_failed);
+        timingDisplay.refresh();
     }
 
     private void replaceCurrentInput() {
@@ -913,6 +894,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
     }
 
     private void cancelActiveTranslation() {
+        if (timingDisplay != null) timingDisplay.clear();
         if (activeClient != null) {
             activeClient.cancel();
             activeClient = null;

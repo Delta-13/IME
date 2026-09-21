@@ -72,4 +72,23 @@
         <item>Decline</item>
         <item>Care</item>
     </string-array>
+    <string name="overlay_timing_current">%1$s · %2$s</string>
+    <string name="overlay_timing_total">Request total %1$s</string>
+    <string name="overlay_timing_failed">Failed · %1$s</string>
+    <string name="overlay_timing_cancelled">Request cancelled</string>
+    <string name="overlay_timing_queue">Queue</string>
+    <string name="overlay_timing_prepare">Setup</string>
+    <string name="overlay_timing_dns">DNS</string>
+    <string name="overlay_timing_connect">Connect</string>
+    <string name="overlay_timing_tls">TLS</string>
+    <string name="overlay_timing_upload">Upload</string>
+    <string name="overlay_timing_wait">Wait headers</string>
+    <string name="overlay_timing_receive">Receive</string>
+    <string name="overlay_timing_parse">Parse</string>
+    <string name="overlay_timing_attempts">%1$d connection attempts</string>
+    <string name="overlay_timing_reused">Connection reused</string>
+    <string name="overlay_timing_skipped">skipped</string>
+    <string name="overlay_timing_sub_ms">&lt;1 ms</string>
+    <string name="overlay_timing_ms">%1$d ms</string>
+    <string name="overlay_timing_seconds">%1$.2f s</string>
 </resources>
