@@ -36,6 +36,13 @@
     <string name="overlay_status_waiting">等待当前输入框 · 不会自动发送</string>
     <string name="overlay_status_typing">检测到输入，停顿后翻译…</string>
     <string name="overlay_status_translating">正在翻译…</string>
+    <string name="overlay_connection_idle">连接状态 · 等待输入</string>
+    <string name="overlay_connection_typing">连接状态 · 等待输入停顿</string>
+    <string name="overlay_connection_sending">正在发送到服务端…</string>
+    <string name="overlay_connection_waiting_reply">已经发送完毕，等待服务端回信…</string>
+    <string name="overlay_connection_ready">已收到服务端回复</string>
+    <string name="overlay_connection_failed">连接失败或响应无效</string>
+    <string name="overlay_connection_configure">等待配置 API</string>
     <string name="overlay_status_missing_api">请先在 ToneIME 主页面保存 HTTPS API、模型和 API Key</string>
     <string name="overlay_status_changed">原文已变化，已取消替换</string>
     <string name="overlay_status_replaced">已替换；请确认后手动发送</string>

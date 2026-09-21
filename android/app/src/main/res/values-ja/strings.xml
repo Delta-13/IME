@@ -36,6 +36,13 @@
     <string name="overlay_status_waiting">現在の入力欄を待機中 · 自動送信はしません</string>
     <string name="overlay_status_typing">入力を検出しました。停止後に翻訳します…</string>
     <string name="overlay_status_translating">翻訳しています…</string>
+    <string name="overlay_connection_idle">接続状態 · 入力待ち</string>
+    <string name="overlay_connection_typing">接続状態 · 入力の停止待ち</string>
+    <string name="overlay_connection_sending">サーバーへ送信中…</string>
+    <string name="overlay_connection_waiting_reply">送信完了。サーバーからの応答待ち…</string>
+    <string name="overlay_connection_ready">サーバーから応答を受信しました</string>
+    <string name="overlay_connection_failed">接続または応答に失敗しました</string>
+    <string name="overlay_connection_configure">API の設定待ち</string>
     <string name="overlay_status_missing_api">ToneIMEのメイン画面でHTTPS API、モデル、API Keyを保存してください</string>
     <string name="overlay_status_changed">原文が変更されたため、置換をキャンセルしました</string>
     <string name="overlay_status_replaced">置換しました。確認してから手動で送信してください</string>

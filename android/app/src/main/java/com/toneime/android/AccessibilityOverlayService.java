@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.os.Build;
@@ -22,24 +23,32 @@ import android.view.ViewTreeObserver;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.widget.TextView;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.List;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public final class AccessibilityOverlayService extends AccessibilityService {
     private static final int MIN_KEYBOARD_HEIGHT_DP = 120;
-    private static final long DEBOUNCE_MS = 900;
+    private static final long DEBOUNCE_MS = 450;
+    private static final long FOCUS_RETRY_MS = 180;
+    private static final int MAX_FOCUS_RETRIES = 3;
     private static final String COMPACT_LAYOUT_VERSION = "overlay_compact_layout_version";
     private static final int COMPACT_LAYOUT_VERSION_CURRENT = 1;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor executor = new ThreadPoolExecutor(
+            2, 2, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
     private WindowManager windowManager;
     private WindowManager.LayoutParams windowParams;
     private View overlay;
     private TextView serviceTitle;
     private TextView direction;
     private TextView settingsSummary;
+    private TextView connectionStatus;
     private TextView candidate;
     private int politeness = 3;
     private int warmth = 3;
@@ -49,7 +58,9 @@ public final class AccessibilityOverlayService extends AccessibilityService {
     private String observedSource = "";
     private String translatedSource = "";
     private String latestTranslation = "";
-    private int generation;
+    private volatile int generation;
+    private OpenAiClient activeClient;
+    private Future<?> activeRequest;
     private long suppressEventsUntil;
     private boolean receiverRegistered;
     private String sourceLanguageCode = "zh";
@@ -148,15 +159,20 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         if (overlay == null) {
             showOverlay();
         }
+        adjustOverlayForIme();
 
         AccessibilityNodeInfo node = event.getSource();
+        if (node != null && !node.isFocused()) {
+            node.recycle();
+            node = null;
+        }
+        if (node == null) {
+            node = findFocusedInput();
+        }
         if (node == null) {
             return;
         }
         try {
-            if (!node.isFocused()) {
-                return;
-            }
             String value = text(node.getText());
             if (!InputMonitorPolicy.canMonitor(
                     text(node.getPackageName()),
@@ -179,8 +195,18 @@ public final class AccessibilityOverlayService extends AccessibilityService {
     }
 
     @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        handler.post(() -> {
+            fitOverlayToDisplay(true);
+            adjustOverlayForIme();
+        });
+    }
+
+    @Override
     public void onDestroy() {
         generation++;
+        cancelActiveTranslation();
         handler.removeCallbacksAndMessages(null);
         executor.shutdownNow();
         removeOverlayImeAvoidanceListener();
@@ -225,6 +251,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         overlay.addOnLayoutChangeListener((view, left, top, right, bottom,
                 oldLeft, oldTop, oldRight, oldBottom) -> updateResponsiveLayout(right - left));
         overlay.getViewTreeObserver().addOnGlobalLayoutListener(overlayImeAvoidanceListener);
+        fitOverlayToDisplay(false);
         adjustOverlayForIme();
     }
 
@@ -233,6 +260,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
             return;
         }
         generation++;
+        cancelActiveTranslation();
         handler.removeCallbacksAndMessages(null);
         observedSource = "";
         translatedSource = "";
@@ -247,6 +275,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         serviceTitle = overlay.findViewById(R.id.overlay_service_title);
         direction = overlay.findViewById(R.id.overlay_direction);
         settingsSummary = overlay.findViewById(R.id.overlay_settings_summary);
+        connectionStatus = overlay.findViewById(R.id.overlay_connection_status);
         candidate = overlay.findViewById(R.id.overlay_candidate);
     }
 
@@ -298,6 +327,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
             return;
         }
         generation++;
+        cancelActiveTranslation();
         handler.removeCallbacksAndMessages(null);
         pendingTranslation = null;
         observedSource = "";
@@ -369,7 +399,8 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         compactOverlay = nextCompact;
         serviceTitle.setVisibility(nextCompact ? View.GONE : View.VISIBLE);
         settingsSummary.setMaxLines(nextCompact ? 2 : 1);
-        candidate.setMaxLines(nextCompact ? 2 : 3);
+        connectionStatus.setMaxLines(nextCompact ? 2 : 1);
+        candidate.setMaxLines(nextCompact ? 4 : 5);
     }
 
     private void setupDragging(View handle) {
@@ -437,13 +468,13 @@ public final class AccessibilityOverlayService extends AccessibilityService {
                         return true;
                     case MotionEvent.ACTION_MOVE:
                         resized = true;
-                        int minimumWidth = dp(AppSettings.OVERLAY_WIDTH_MIN_DP);
-                        int minimumHeight = dp(AppSettings.OVERLAY_HEIGHT_MIN_DP);
-                        int maximumWidth = Math.max(
-                                minimumWidth,
+                        int availableWidth = Math.max(1,
                                 getResources().getDisplayMetrics().widthPixels
-                                        - windowParams.x
-                                        - dp(8));
+                                        - windowParams.x - dp(8));
+                        int minimumWidth = Math.min(
+                                dp(AppSettings.OVERLAY_WIDTH_MIN_DP), availableWidth);
+                        int minimumHeight = dp(AppSettings.OVERLAY_HEIGHT_MIN_DP);
+                        int maximumWidth = availableWidth;
                         int maximumHeight = Math.max(
                                 minimumHeight,
                                 getResources().getDisplayMetrics().heightPixels
@@ -508,6 +539,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         if (overlay == null || windowManager == null) {
             return;
         }
+        fitOverlayToDisplay(false);
 
         int overlayHeight = overlay.getHeight();
         if (overlayHeight <= 0) {
@@ -534,7 +566,53 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         setOverlayY(targetY);
     }
 
+    private void fitOverlayToDisplay(boolean restorePreferredWidth) {
+        if (overlay == null || windowManager == null) {
+            return;
+        }
+
+        int displayWidth = getResources().getDisplayMetrics().widthPixels;
+        int displayHeight = getResources().getDisplayMetrics().heightPixels;
+        int availableWidth = Math.max(1, displayWidth - dp(16));
+        int availableHeight = Math.max(1, displayHeight - dp(16));
+        int currentWidth = windowParams.width > 0
+                ? windowParams.width
+                : overlay.getWidth();
+        int preferredWidth = restorePreferredWidth
+                ? dp(AppSettings.overlayWidthDp(AppSettings.preferences(this).getInt(
+                        AppSettings.OVERLAY_WIDTH_DP,
+                        AppSettings.OVERLAY_WIDTH_DEFAULT_DP)))
+                : currentWidth;
+        int fittedWidth = Math.min(preferredWidth, availableWidth);
+        int preferredHeightDp = restorePreferredWidth
+                ? AppSettings.overlayHeightDp(AppSettings.preferences(this).getInt(
+                        AppSettings.OVERLAY_HEIGHT_DP, 0))
+                : 0;
+        int fittedHeight = preferredHeightDp > 0
+                ? Math.min(dp(preferredHeightDp), availableHeight)
+                : windowParams.height > 0
+                        ? Math.min(windowParams.height, availableHeight)
+                        : windowParams.height;
+        int fittedX = clamp(windowParams.x, 0, Math.max(0, displayWidth - fittedWidth));
+        if (windowParams.width == fittedWidth
+                && windowParams.height == fittedHeight
+                && windowParams.x == fittedX) {
+            return;
+        }
+        windowParams.width = fittedWidth;
+        windowParams.height = fittedHeight;
+        windowParams.x = fittedX;
+        windowManager.updateViewLayout(overlay, windowParams);
+    }
+
     private int estimateKeyboardHeight(int screenHeight) {
+        for (AccessibilityWindowInfo window : getWindows()) {
+            if (window.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
+                Rect bounds = new Rect();
+                window.getBoundsInScreen(bounds);
+                return Math.max(0, screenHeight - bounds.top);
+            }
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             android.view.WindowInsets insets = overlay.getRootWindowInsets();
             if (insets != null) {
@@ -569,11 +647,13 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         if (source.equals(observedSource)) {
             return;
         }
+        cancelActiveTranslation();
         observedSource = source;
         translatedSource = "";
         latestTranslation = "";
         candidate.setText(R.string.overlay_status_typing);
         candidate.setEnabled(false);
+        connectionStatus.setText(R.string.overlay_connection_typing);
         scheduleTranslation(source);
     }
 
@@ -582,18 +662,24 @@ public final class AccessibilityOverlayService extends AccessibilityService {
             handler.removeCallbacks(pendingTranslation);
         }
         int requestGeneration = ++generation;
-        pendingTranslation = () -> startTranslation(requestGeneration, source);
+        pendingTranslation = () -> startTranslation(requestGeneration, source, 0);
         handler.postDelayed(pendingTranslation, DEBOUNCE_MS);
     }
 
-    private void startTranslation(int requestGeneration, String source) {
+    private void startTranslation(int requestGeneration, String source, int retryCount) {
         if (requestGeneration != generation || !source.equals(observedSource)) {
             return;
         }
 
         AccessibilityNodeInfo input = findFocusedInput();
         if (input == null) {
-            clearObservation();
+            if (retryCount < MAX_FOCUS_RETRIES) {
+                pendingTranslation = () -> startTranslation(
+                        requestGeneration, source, retryCount + 1);
+                handler.postDelayed(pendingTranslation, FOCUS_RETRY_MS);
+            } else {
+                clearObservation();
+            }
             return;
         }
         try {
@@ -604,14 +690,18 @@ public final class AccessibilityOverlayService extends AccessibilityService {
                     input.isEditable(),
                     input.isPassword(),
                     input.isShowingHintText(),
-                    current)
-                    || !source.equals(current)) {
+                    current)) {
                 clearObservation();
+                return;
+            }
+            if (!source.equals(current)) {
+                observe(current);
                 return;
             }
         } finally {
             input.recycle();
         }
+        pendingTranslation = null;
 
         SharedPreferences preferences = AppSettings.preferences(this);
         String provider = ApiProvider.normalize(
@@ -626,6 +716,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
                 || apiKey.trim().isEmpty()) {
             candidate.setText(R.string.overlay_status_missing_api);
             candidate.setEnabled(false);
+            connectionStatus.setText(R.string.overlay_connection_configure);
             return;
         }
 
@@ -641,16 +732,48 @@ public final class AccessibilityOverlayService extends AccessibilityService {
                 directness);
         candidate.setText(R.string.overlay_status_translating);
         candidate.setEnabled(false);
-        executor.execute(() -> {
+        connectionStatus.setText(R.string.overlay_connection_sending);
+        OpenAiClient client = new OpenAiClient();
+        activeClient = client;
+        activeRequest = executor.submit(() -> {
+            if (requestGeneration != generation || Thread.currentThread().isInterrupted()) {
+                return;
+            }
             try {
-                TranslationProtocol.Result result = new OpenAiClient()
-                        .translate(provider, endpoint, model, apiKey, request);
+                TranslationProtocol.Result result = client.translate(
+                        provider, endpoint, model, apiKey, request,
+                        new OpenAiClient.ProgressListener() {
+                            @Override
+                            public void onSending() {
+                                handler.post(() -> showConnectionProgress(
+                                        requestGeneration, source,
+                                        R.string.overlay_connection_sending));
+                            }
+
+                            @Override
+                            public void onWaitingForResponse() {
+                                handler.post(() -> showConnectionProgress(
+                                        requestGeneration, source,
+                                        R.string.overlay_connection_waiting_reply));
+                            }
+                        });
                 String primary = result.candidates.get(0).text;
                 handler.post(() -> showTranslation(requestGeneration, source, primary));
             } catch (Exception exception) {
                 handler.post(() -> showTranslationError(requestGeneration, source));
             }
         });
+    }
+
+    private void showConnectionProgress(
+            int requestGeneration,
+            String source,
+            int statusResource) {
+        if (overlay != null
+                && requestGeneration == generation
+                && source.equals(observedSource)) {
+            connectionStatus.setText(statusResource);
+        }
     }
 
     private void showTranslation(int requestGeneration, String source, String translation) {
@@ -661,8 +784,11 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         }
         translatedSource = source;
         latestTranslation = translation;
+        activeClient = null;
+        activeRequest = null;
         candidate.setText(translation);
         candidate.setEnabled(true);
+        connectionStatus.setText(R.string.overlay_connection_ready);
     }
 
     private void showTranslationError(
@@ -673,8 +799,11 @@ public final class AccessibilityOverlayService extends AccessibilityService {
                 || !source.equals(observedSource)) {
             return;
         }
+        activeClient = null;
+        activeRequest = null;
         candidate.setText(R.string.error_translation_failed);
         candidate.setEnabled(false);
+        connectionStatus.setText(R.string.overlay_connection_failed);
     }
 
     private void replaceCurrentInput() {
@@ -716,6 +845,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
             }
 
             generation++;
+            cancelActiveTranslation();
             if (pendingTranslation != null) {
                 handler.removeCallbacks(pendingTranslation);
             }
@@ -724,13 +854,39 @@ public final class AccessibilityOverlayService extends AccessibilityService {
             latestTranslation = "";
             candidate.setText(R.string.overlay_status_replaced);
             candidate.setEnabled(false);
+            connectionStatus.setText(R.string.overlay_connection_idle);
         } finally {
             input.recycle();
         }
     }
 
     private AccessibilityNodeInfo findFocusedInput() {
-        AccessibilityNodeInfo root = getRootInActiveWindow();
+        AccessibilityNodeInfo focused = focusedNode(getRootInActiveWindow());
+        if (focused != null) {
+            if (focused.isEditable()) {
+                return focused;
+            }
+            focused.recycle();
+        }
+
+        List<AccessibilityWindowInfo> windows = getWindows();
+        for (AccessibilityWindowInfo window : windows) {
+            if (window.getType() != AccessibilityWindowInfo.TYPE_APPLICATION) {
+                continue;
+            }
+            focused = focusedNode(window.getRoot());
+            if (focused == null) {
+                continue;
+            }
+            if (focused.isEditable()) {
+                return focused;
+            }
+            focused.recycle();
+        }
+        return null;
+    }
+
+    private static AccessibilityNodeInfo focusedNode(AccessibilityNodeInfo root) {
         if (root == null) {
             return null;
         }
@@ -743,14 +899,29 @@ public final class AccessibilityOverlayService extends AccessibilityService {
 
     private void clearObservation() {
         generation++;
+        cancelActiveTranslation();
         if (pendingTranslation != null) {
             handler.removeCallbacks(pendingTranslation);
+            pendingTranslation = null;
         }
         observedSource = "";
         translatedSource = "";
         latestTranslation = "";
         candidate.setText(R.string.overlay_status_waiting);
         candidate.setEnabled(false);
+        connectionStatus.setText(R.string.overlay_connection_idle);
+    }
+
+    private void cancelActiveTranslation() {
+        if (activeClient != null) {
+            activeClient.cancel();
+            activeClient = null;
+        }
+        if (activeRequest != null) {
+            activeRequest.cancel(true);
+            activeRequest = null;
+            executor.purge();
+        }
     }
 
     private static String text(CharSequence value) {

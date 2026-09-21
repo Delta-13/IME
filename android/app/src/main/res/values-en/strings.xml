@@ -36,6 +36,13 @@
     <string name="overlay_status_waiting">Waiting for the current input field · Never sends automatically</string>
     <string name="overlay_status_typing">Input detected. Translation starts after you pause…</string>
     <string name="overlay_status_translating">Translating…</string>
+    <string name="overlay_connection_idle">Connection · Waiting for input</string>
+    <string name="overlay_connection_typing">Connection · Waiting for a pause</string>
+    <string name="overlay_connection_sending">Sending to the server…</string>
+    <string name="overlay_connection_waiting_reply">Sent. Waiting for the server response…</string>
+    <string name="overlay_connection_ready">Server response received</string>
+    <string name="overlay_connection_failed">Connection failed or response invalid</string>
+    <string name="overlay_connection_configure">Waiting for API settings</string>
     <string name="overlay_status_missing_api">Save an HTTPS API, model, and API Key on the ToneIME main screen first</string>
     <string name="overlay_status_changed">The source changed, so replacement was canceled</string>
     <string name="overlay_status_replaced">Replaced. Review it and send manually.</string>

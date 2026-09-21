@@ -13,8 +13,24 @@ import java.nio.charset.StandardCharsets;
 import javax.net.ssl.HttpsURLConnection;
 
 final class OpenAiClient {
-    private static final int TIMEOUT_MS = 45_000;
+    private static final int CONNECT_TIMEOUT_MS = 10_000;
+    private static final int READ_TIMEOUT_MS = 30_000;
     private static final int MAX_RESPONSE_BYTES = 1_048_576;
+    private volatile HttpsURLConnection activeConnection;
+    private volatile boolean cancelled;
+
+    interface ProgressListener {
+        void onSending();
+        void onWaitingForResponse();
+    }
+
+    void cancel() {
+        cancelled = true;
+        HttpsURLConnection connection = activeConnection;
+        if (connection != null) {
+            connection.disconnect();
+        }
+    }
 
     TranslationProtocol.Result translate(
             String provider,
@@ -22,6 +38,24 @@ final class OpenAiClient {
             String model,
             String apiKey,
             TranslationProtocol.Request request) throws Exception {
+        return translate(provider, baseUrl, model, apiKey, request, new ProgressListener() {
+            @Override
+            public void onSending() {
+            }
+
+            @Override
+            public void onWaitingForResponse() {
+            }
+        });
+    }
+
+    TranslationProtocol.Result translate(
+            String provider,
+            String baseUrl,
+            String model,
+            String apiKey,
+            TranslationProtocol.Request request,
+            ProgressListener progress) throws Exception {
         String normalizedProvider = ApiProvider.normalize(provider);
         String path = ApiProvider.usesClaudeMessages(normalizedProvider)
                 ? "/messages"
@@ -37,10 +71,12 @@ final class OpenAiClient {
                 .toString()
                 .getBytes(StandardCharsets.UTF_8);
         HttpsURLConnection connection = (HttpsURLConnection) endpoint.openConnection();
+        activeConnection = connection;
         try {
+            ensureActive();
             connection.setRequestMethod("POST");
-            connection.setConnectTimeout(TIMEOUT_MS);
-            connection.setReadTimeout(TIMEOUT_MS);
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(READ_TIMEOUT_MS);
             connection.setDoOutput(true);
             connection.setFixedLengthStreamingMode(requestBytes.length);
             connection.setRequestProperty("Accept", "application/json");
@@ -55,15 +91,20 @@ final class OpenAiClient {
                 connection.setRequestProperty("Authorization", "Bearer " + apiKey.trim());
             }
 
+            progress.onSending();
             try (OutputStream output = connection.getOutputStream()) {
+                ensureActive();
                 output.write(requestBytes);
             }
+            ensureActive();
+            progress.onWaitingForResponse();
 
             int status = connection.getResponseCode();
             InputStream stream = status >= 200 && status < 300
                     ? connection.getInputStream()
                     : connection.getErrorStream();
             String body = stream == null ? "" : readLimited(stream);
+            ensureActive();
             if (status < 200 || status >= 300) {
                 throw new IOException("模型请求失败（" + status + "）：" + providerError(body));
             }
@@ -75,6 +116,15 @@ final class OpenAiClient {
             throw new IOException("模型请求超时，请重试。", exception);
         } finally {
             connection.disconnect();
+            if (activeConnection == connection) {
+                activeConnection = null;
+            }
+        }
+    }
+
+    private void ensureActive() throws IOException {
+        if (cancelled || Thread.currentThread().isInterrupted()) {
+            throw new IOException("Translation request was cancelled.");
         }
     }
 

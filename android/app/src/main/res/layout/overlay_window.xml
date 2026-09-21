@@ -19,10 +19,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingStart="8dp"
-            android:paddingTop="8dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="36dp">
+            android:paddingStart="10dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="38dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -91,6 +91,40 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_overlay_control"
+                android:gravity="center_vertical"
+                android:minHeight="34dp"
+                android:orientation="horizontal"
+                android:paddingStart="10dp"
+                android:paddingTop="5dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="5dp">
+
+                <TextView
+                    android:layout_width="12dp"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@null"
+                    android:text="●"
+                    android:textColor="@color/tone_accent"
+                    android:textSize="9sp" />
+
+                <TextView
+                    android:id="@+id/overlay_connection_status"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/overlay_connection_idle"
+                    android:textColor="@color/tone_muted"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:background="@drawable/bg_overlay_control"
                 android:minHeight="46dp"
@@ -125,7 +159,7 @@
                 android:id="@+id/overlay_candidate"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="8dp"
                 android:background="@drawable/bg_overlay_control"
                 android:clickable="true"
                 android:ellipsize="end"
@@ -133,12 +167,12 @@
                 android:focusable="true"
                 android:foreground="?android:attr/selectableItemBackground"
                 android:gravity="center_vertical"
-                android:maxLines="3"
-                android:minHeight="50dp"
-                android:paddingStart="10dp"
-                android:paddingTop="7dp"
-                android:paddingEnd="10dp"
-                android:paddingBottom="7dp"
+                android:maxLines="5"
+                android:minHeight="58dp"
+                android:paddingStart="12dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="10dp"
                 android:text="@string/overlay_candidate_waiting"
                 android:textColor="@color/tone_ink"
                 android:textSize="12sp" />
