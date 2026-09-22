@@ -48,6 +48,7 @@ public final class ToneImeModule extends ReactContextBaseJavaModule implements N
                     preferences.getString("provider", AppSettings.DEFAULT_PROVIDER));
             WritableMap state = Arguments.createMap();
             state.putString("uiLanguage", AppSettings.uiLanguage(getReactApplicationContext()));
+            state.putString("themeMode", AppTheme.mode(getReactApplicationContext()));
             state.putString("sourceLanguage",
                     preferences.getString("source_language", "zh"));
             state.putString("targetLanguage",
@@ -79,6 +80,28 @@ public final class ToneImeModule extends ReactContextBaseJavaModule implements N
         } catch (Exception exception) {
             promise.reject("E_LOAD_SETTINGS", exception);
         }
+    }
+
+    @ReactMethod
+    public void setThemeMode(String mode, Promise promise) {
+        if (!AppTheme.normalize(mode).equals(mode)) {
+            promise.reject("E_THEME", "Unsupported theme.");
+            return;
+        }
+        // A theme change must not save an unfinished API form or cancel translation.
+        com.facebook.react.bridge.UiThreadUtil.runOnUiThread(() -> {
+            try {
+                Context context = getReactApplicationContext();
+                AppSettings.preferences(context).edit().putString(AppTheme.PREFERENCE, mode).apply();
+                AppTheme.applySavedMode(context);
+                Activity activity = getCurrentActivity();
+                if (activity != null) AppTheme.applyWindow(activity);
+                context.sendBroadcast(new Intent(AppTheme.ACTION_CHANGED).setPackage(context.getPackageName()));
+                promise.resolve(null);
+            } catch (Exception exception) {
+                promise.reject("E_THEME", exception);
+            }
+        });
     }
 
     @ReactMethod

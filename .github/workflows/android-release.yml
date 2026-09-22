@@ -67,6 +67,7 @@ jobs:
         run: |
           npm ci
           npm run typecheck
+          npm run test:theme
 
       - name: Install Android SDK components
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006"'

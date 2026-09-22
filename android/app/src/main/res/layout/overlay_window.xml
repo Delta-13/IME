@@ -9,6 +9,7 @@
 
     <ScrollView
         android:id="@+id/overlay_scroll"
+        android:defaultFocusHighlightEnabled="false"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fillViewport="true"
@@ -25,8 +26,10 @@
             android:paddingBottom="38dp">
 
             <LinearLayout
+                android:id="@+id/overlay_header"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
+                android:background="@drawable/bg_overlay_control"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -38,7 +41,7 @@
                     android:contentDescription="@string/overlay_drag"
                     android:gravity="center"
                     android:text="@string/overlay_brand_symbol"
-                    android:textColor="@android:color/white"
+                    android:textColor="@color/tone_on_accent"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -89,6 +92,7 @@
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/overlay_connection_panel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
@@ -102,6 +106,7 @@
                 android:paddingBottom="5dp">
 
                 <TextView
+                    android:id="@+id/overlay_status_dot"
                     android:layout_width="12dp"
                     android:layout_height="wrap_content"
                     android:contentDescription="@null"
@@ -124,17 +129,21 @@
 
             <TextView
                 android:id="@+id/overlay_connection_timing"
+                android:background="@drawable/bg_overlay_control"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
+                android:paddingTop="5dp"
+                android:paddingBottom="5dp"
                 android:lineSpacingExtra="2dp"
                 android:textColor="@color/tone_muted"
                 android:textSize="10sp"
                 android:visibility="gone" />
 
             <LinearLayout
+                android:id="@+id/overlay_settings_panel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
@@ -193,6 +202,7 @@
 
     <TextView
         android:id="@+id/overlay_resize_handle"
+        android:background="@drawable/bg_overlay_control"
         android:layout_width="40dp"
         android:layout_height="40dp"
         android:layout_gravity="bottom|end"

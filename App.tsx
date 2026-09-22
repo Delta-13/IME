@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {createContext, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   AppState,
@@ -11,8 +11,10 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useColorScheme,
   View,
 } from 'react-native';
+import {themes, ThemeColors, ThemeMode} from './theme';
 
 type UiLanguage = 'zh' | 'ja' | 'en';
 type LanguageCode = 'zh' | 'ja' | 'en' | 'ko' | 'de';
@@ -29,6 +31,7 @@ type ProviderId =
   | 'custom';
 
 type SettingsState = {
+  themeMode: ThemeMode;
   uiLanguage: UiLanguage;
   sourceLanguage: LanguageCode;
   targetLanguage: LanguageCode;
@@ -59,6 +62,7 @@ type TranslationResult = {
 
 type ToneImeApi = {
   loadState(): Promise<NativeState>;
+  setThemeMode(mode: ThemeMode): Promise<void>;
   setUiLanguage(language: UiLanguage): Promise<void>;
   changeLanguage(
     language: LanguageCode,
@@ -77,10 +81,18 @@ type ToneImeApi = {
 };
 
 const ToneIme = NativeModules.ToneIme as ToneImeApi;
+const ThemeStyles = createContext<ReturnType<typeof createStyles> | null>(null);
+
+function useThemeStyles() {
+  const styles = useContext(ThemeStyles);
+  if (!styles) throw new Error('Missing theme provider');
+  return styles;
+}
 
 const HEADER_HEIGHT = 74 + (StatusBar.currentHeight ?? 0);
 
 const DEFAULTS: SettingsState = {
+  themeMode: 'system',
   uiLanguage: 'zh',
   sourceLanguage: 'zh',
   targetLanguage: 'ja',
@@ -97,6 +109,10 @@ const DEFAULTS: SettingsState = {
 
 const copy = {
   zh: {
+    appearance: '外观',
+    themeSystem: '跟随系统',
+    themeLight: '浅色',
+    themeDark: '深色',
     overlayReady: '浮窗服务已就绪',
     overlayOff: '浮窗服务未开启',
     workspace: '翻译工作区',
@@ -143,13 +159,17 @@ const copy = {
     overlayButton: '开启 / 管理实时浮窗',
     privacy: '仅读取当前获得焦点的非密码输入框；停顿约 0.45 秒后翻译。必须点击译文才会替换，绝不自动发送。',
     overlayDisplay: '浮窗显示',
-    overlayOpacity: '透明度',
-    overlaySizeHint: '在浮窗右下角拖动可调整大小；内容会随宽度自动收纳。',
+    overlayOpacity: '背景不透明度',
+    overlaySizeHint: '仅调整外层背景，文字和内容底板保持清晰。拖动浮窗右下角可调整大小。',
     select: '选择',
     close: '关闭',
     notAvailable: '—',
   },
   ja: {
+    appearance: '外観',
+    themeSystem: 'システム',
+    themeLight: 'ライト',
+    themeDark: 'ダーク',
     overlayReady: 'フローティング翻訳は準備完了',
     overlayOff: 'フローティング翻訳はオフ',
     workspace: '翻訳ワークスペース',
@@ -196,13 +216,17 @@ const copy = {
     overlayButton: 'リアルタイム表示を設定',
     privacy: '現在フォーカス中のパスワード以外の入力欄だけを読み取り、約0.45秒後に翻訳します。訳文をタップした時だけ置き換え、自動送信はしません。',
     overlayDisplay: 'フローティング表示',
-    overlayOpacity: '透明度',
-    overlaySizeHint: '右下をドラッグしてサイズ変更できます。幅に合わせて内容を収めます。',
+    overlayOpacity: '背景不透明度',
+    overlaySizeHint: '外側の背景のみを調整し、文字と内容の背景は不透明に保ちます。右下をドラッグするとサイズ変更できます。',
     select: '選択',
     close: '閉じる',
     notAvailable: '—',
   },
   en: {
+    appearance: 'Appearance',
+    themeSystem: 'System',
+    themeLight: 'Light',
+    themeDark: 'Dark',
     overlayReady: 'Live overlay is ready',
     overlayOff: 'Live overlay is off',
     workspace: 'Translation workspace',
@@ -249,8 +273,8 @@ const copy = {
     overlayButton: 'Enable / manage live overlay',
     privacy: 'Only the focused, non-password input is read and translated after about 0.45 seconds. Text changes only when you tap a translation and is never auto-sent.',
     overlayDisplay: 'Overlay display',
-    overlayOpacity: 'Opacity',
-    overlaySizeHint: 'Drag the lower-right corner to resize; content adapts to the available width.',
+    overlayOpacity: 'Background opacity',
+    overlaySizeHint: 'Only the outer background fades; text and content surfaces stay opaque. Drag the lower-right corner to resize.',
     select: 'Select',
     close: 'Close',
     notAvailable: '—',
@@ -343,6 +367,7 @@ function SelectField<T extends string>({
   testID?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const styles = useThemeStyles();
   const selected = options.find(option => option.value === value)?.label ?? value;
   return (
     <View style={styles.field}>
@@ -420,6 +445,7 @@ function RangeSlider({
   onComplete: (value: number) => void;
 }) {
   const width = useRef(1);
+  const styles = useThemeStyles();
   const valueFromX = (x: number) =>
     Math.max(min, Math.min(max, Math.round((x / width.current) * (max - min)) + min));
   const progress = ((value - min) / (max - min)) * 100;
@@ -471,6 +497,12 @@ function ToneSlider(props: {
 
 export default function App() {
   const [settings, setSettings] = useState<SettingsState>(DEFAULTS);
+  const systemScheme = useColorScheme();
+  const dark = settings.themeMode === 'dark'
+    || (settings.themeMode === 'system' && systemScheme === 'dark');
+  const colors = dark ? themes.dark : themes.light;
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const themeChange = useRef(0);
   const [source, setSource] = useState('');
   const [hasApiKey, setHasApiKey] = useState(false);
   const [apiKey, setApiKey] = useState('');
@@ -502,6 +534,7 @@ export default function App() {
     ToneIme.loadState()
       .then(state => {
         setSettings({
+          themeMode: state.themeMode,
           uiLanguage: state.uiLanguage,
           sourceLanguage: state.sourceLanguage,
           targetLanguage: state.targetLanguage,
@@ -648,6 +681,19 @@ export default function App() {
     });
   };
 
+  const changeTheme = (themeMode: ThemeMode) => {
+    if (themeMode === settings.themeMode) return;
+    const previous = settings.themeMode;
+    const change = ++themeChange.current;
+    setSettings(current => ({...current, themeMode}));
+    void ToneIme.setThemeMode(themeMode).catch(() => {
+      if (change !== themeChange.current) return;
+      setSettings(current => ({...current, themeMode: previous}));
+      setMessage(t.saveFailed);
+      setStatus('error');
+    });
+  };
+
   const changeLanguage = (language: LanguageCode, sourceChanged: boolean) => {
     clearResult();
     void ToneIme.changeLanguage(language, sourceChanged)
@@ -741,808 +787,839 @@ export default function App() {
   }));
 
   return (
-    <View style={styles.app}>
-      <StatusBar backgroundColor="#F7F7FA" barStyle="dark-content" />
-      <View style={styles.header}>
-        <View style={styles.brand}>
-          <View style={styles.brandMark}><Text style={styles.brandLetter}>T</Text></View>
-          <View style={styles.brandCopy}>
-            <Text style={styles.brandName}>ToneIME</Text>
-            <View style={styles.serviceStatus}>
+    <ThemeStyles.Provider value={styles}>
+      <View style={styles.app}>
+        <StatusBar backgroundColor={colors.background} barStyle={dark ? 'light-content' : 'dark-content'} />
+        <View style={styles.header}>
+          <View style={styles.brand}>
+            <View style={styles.brandMark}><Text style={styles.brandLetter}>T</Text></View>
+            <View style={styles.brandCopy}>
+              <Text style={styles.brandName}>ToneIME</Text>
+              <View style={styles.serviceStatus}>
+                <View style={[
+                  styles.statusDot,
+                  !accessibilityEnabled && styles.statusDotOff,
+                ]} />
+                <Text numberOfLines={1} style={styles.serviceStatusText}>
+                  {accessibilityEnabled ? t.overlayReady : t.overlayOff}
+                </Text>
+              </View>
+            </View>
+          </View>
+          <View accessibilityRole="tablist" style={styles.languageTabs}>
+            {(['zh', 'ja', 'en'] as UiLanguage[]).map(language => (
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{selected: settings.uiLanguage === language}}
+                key={language}
+                onPress={() => changeUiLanguage(language)}
+                style={[
+                  styles.languageTab,
+                  settings.uiLanguage === language && styles.languageTabActive,
+                ]}
+                testID={`ui-language-${language}`}>
+                <Text style={[
+                  styles.languageTabText,
+                  settings.uiLanguage === language && styles.languageTabTextActive,
+                ]}>
+                  {language === 'zh' ? '中' : language === 'ja' ? '日' : 'EN'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={[
+            styles.content,
+            keyboardHeight > 0 && {paddingBottom: keyboardHeight + 24},
+          ]}
+          keyboardShouldPersistTaps="handled"
+          ref={scrollView}
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.contentInner}>
+            <Text style={styles.kicker}>01 · TRANSLATE</Text>
+            <Text style={styles.title}>{t.workspace}</Text>
+            <Text style={styles.subtitle}>{t.hint}</Text>
+
+            <View style={[styles.card, styles.appearanceCard]}>
+              <Text style={styles.cardTitle}>{t.appearance}</Text>
+              <View accessibilityRole="radiogroup" accessibilityLabel={t.appearance} style={styles.themeTabs}>
+                {(['system', 'light', 'dark'] as ThemeMode[]).map(mode => (
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{checked: settings.themeMode === mode}}
+                    key={mode}
+                    onPress={() => changeTheme(mode)}
+                    style={({pressed}) => [
+                      styles.themeOption,
+                      settings.themeMode === mode && styles.themeOptionActive,
+                      pressed && styles.pressed,
+                    ]}
+                    testID={`theme-mode-${mode}`}>
+                    <Text style={[
+                      styles.themeOptionText,
+                      settings.themeMode === mode && styles.themeOptionTextActive,
+                    ]}>
+                      {mode === 'system' ? t.themeSystem : mode === 'light' ? t.themeLight : t.themeDark}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.card}>
+              <View style={styles.languageRow}>
+                <View style={styles.languageField}>
+                  <SelectField
+                    label={t.source}
+                    onChange={value => changeLanguage(value, true)}
+                    options={languageOptions}
+                    testID="source-language"
+                    value={settings.sourceLanguage}
+                  />
+                </View>
+                <Pressable
+                  accessibilityLabel={`${t.source} / ${t.target}`}
+                  onPress={() => changeLanguage(settings.targetLanguage, true)}
+                  style={({pressed}) => [styles.swap, pressed && styles.pressed]}
+                  testID="swap-languages">
+                  <Text style={styles.swapText}>⇄</Text>
+                </Pressable>
+                <View style={styles.languageField}>
+                  <SelectField
+                    label={t.target}
+                    onChange={value => changeLanguage(value, false)}
+                    options={languageOptions}
+                    testID="target-language"
+                    value={settings.targetLanguage}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.contextRow}>
+                <View style={styles.contextField}>
+                  <SelectField
+                    label={t.relation}
+                    onChange={value => updateSetting('relation', value, true)}
+                    options={relationOptions}
+                    value={settings.relation}
+                  />
+                </View>
+                <View style={styles.contextField}>
+                  <SelectField
+                    label={t.scene}
+                    onChange={value => updateSetting('scene', value, true)}
+                    options={sceneOptions}
+                    value={settings.scene}
+                  />
+                </View>
+              </View>
+
+              <Text style={[styles.fieldLabel, styles.inputLabel]}>{t.original}</Text>
+              <View style={styles.inputShell}>
+                <TextInput
+                  accessibilityLabel={t.original}
+                  maxLength={800}
+                  multiline
+                  onBlur={() => blurInput(sourceInput.current)}
+                  onChangeText={text => {
+                    setSource(text);
+                    if (result) {
+                      clearResult();
+                    }
+                  }}
+                  onFocus={() => focusInput(sourceInput.current)}
+                  placeholder={t.inputHint}
+                  placeholderTextColor={colors.muted}
+                  selectionColor={colors.selection}
+                  cursorColor={colors.accent}
+                  ref={sourceInput}
+                  style={styles.sourceInput}
+                  testID="source-input"
+                  textAlignVertical="top"
+                  value={source}
+                />
+                <Text style={styles.counter}>{source.length} / 800</Text>
+              </View>
+            </View>
+
+            <View style={[styles.card, styles.toneCard]}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>{t.tone}</Text>
+                <Text style={styles.cardMeta}>
+                  {settings.politeness} · {settings.warmth} · {settings.directness}
+                </Text>
+              </View>
+              <ToneSlider
+                label={t.politeness}
+                onChange={value => updateSetting('politeness', value)}
+                onComplete={value => {
+                  const next = {...settings, politeness: value};
+                  setSettings(next);
+                  saveQuietly(next);
+                }}
+                value={settings.politeness}
+              />
+              <ToneSlider
+                label={t.warmth}
+                onChange={value => updateSetting('warmth', value)}
+                onComplete={value => {
+                  const next = {...settings, warmth: value};
+                  setSettings(next);
+                  saveQuietly(next);
+                }}
+                value={settings.warmth}
+              />
+              <ToneSlider
+                label={t.directness}
+                onChange={value => updateSetting('directness', value)}
+                onComplete={value => {
+                  const next = {...settings, directness: value};
+                  setSettings(next);
+                  saveQuietly(next);
+                }}
+                value={settings.directness}
+              />
+            </View>
+
+            <Pressable
+              accessibilityState={{disabled: busy}}
+              disabled={busy}
+              onPress={translate}
+              style={({pressed}) => [
+                styles.primary,
+                pressed && styles.primaryPressed,
+                busy && styles.disabled,
+              ]}
+              testID="translate-button">
+              <Text style={[styles.primaryText, busy && styles.disabledText]}>
+                {busy ? t.translating : t.generate}
+              </Text>
+              <View style={styles.primaryIcon}>
+                {busy
+                  ? <ActivityIndicator color={colors.disabledText} size="small" />
+                  : <Text style={styles.primaryArrow}>→</Text>}
+              </View>
+            </Pressable>
+
+            <View style={[
+              styles.status,
+              status === 'error' && styles.statusError,
+            ]}>
               <View style={[
                 styles.statusDot,
-                !accessibilityEnabled && styles.statusDotOff,
+                status === 'error' && styles.statusDotError,
               ]} />
-              <Text numberOfLines={1} style={styles.serviceStatusText}>
-                {accessibilityEnabled ? t.overlayReady : t.overlayOff}
-              </Text>
-            </View>
-          </View>
-        </View>
-        <View accessibilityRole="tablist" style={styles.languageTabs}>
-          {(['zh', 'ja', 'en'] as UiLanguage[]).map(language => (
-            <Pressable
-              accessibilityRole="tab"
-              accessibilityState={{selected: settings.uiLanguage === language}}
-              key={language}
-              onPress={() => changeUiLanguage(language)}
-              style={[
-                styles.languageTab,
-                settings.uiLanguage === language && styles.languageTabActive,
-              ]}
-              testID={`ui-language-${language}`}>
               <Text style={[
-                styles.languageTabText,
-                settings.uiLanguage === language && styles.languageTabTextActive,
+                styles.statusText,
+                status === 'error' && styles.statusTextError,
               ]}>
-                {language === 'zh' ? '中' : language === 'ja' ? '日' : 'EN'}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          keyboardHeight > 0 && {paddingBottom: keyboardHeight + 24},
-        ]}
-        keyboardShouldPersistTaps="handled"
-        ref={scrollView}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.contentInner}>
-          <Text style={styles.kicker}>01 · TRANSLATE</Text>
-          <Text style={styles.title}>{t.workspace}</Text>
-          <Text style={styles.subtitle}>{t.hint}</Text>
-
-          <View style={styles.card}>
-            <View style={styles.languageRow}>
-              <View style={styles.languageField}>
-                <SelectField
-                  label={t.source}
-                  onChange={value => changeLanguage(value, true)}
-                  options={languageOptions}
-                  testID="source-language"
-                  value={settings.sourceLanguage}
-                />
-              </View>
-              <Pressable
-                accessibilityLabel={`${t.source} / ${t.target}`}
-                onPress={() => changeLanguage(settings.targetLanguage, true)}
-                style={({pressed}) => [styles.swap, pressed && styles.pressed]}
-                testID="swap-languages">
-                <Text style={styles.swapText}>⇄</Text>
-              </Pressable>
-              <View style={styles.languageField}>
-                <SelectField
-                  label={t.target}
-                  onChange={value => changeLanguage(value, false)}
-                  options={languageOptions}
-                  testID="target-language"
-                  value={settings.targetLanguage}
-                />
-              </View>
-            </View>
-
-            <View style={styles.contextRow}>
-              <View style={styles.contextField}>
-                <SelectField
-                  label={t.relation}
-                  onChange={value => updateSetting('relation', value, true)}
-                  options={relationOptions}
-                  value={settings.relation}
-                />
-              </View>
-              <View style={styles.contextField}>
-                <SelectField
-                  label={t.scene}
-                  onChange={value => updateSetting('scene', value, true)}
-                  options={sceneOptions}
-                  value={settings.scene}
-                />
-              </View>
-            </View>
-
-            <Text style={[styles.fieldLabel, styles.inputLabel]}>{t.original}</Text>
-            <View style={styles.inputShell}>
-              <TextInput
-                accessibilityLabel={t.original}
-                maxLength={800}
-                multiline
-                onBlur={() => blurInput(sourceInput.current)}
-                onChangeText={text => {
-                  setSource(text);
-                  if (result) {
-                    clearResult();
-                  }
-                }}
-                onFocus={() => focusInput(sourceInput.current)}
-                placeholder={t.inputHint}
-                placeholderTextColor="#A0A1AF"
-                ref={sourceInput}
-                style={styles.sourceInput}
-                testID="source-input"
-                textAlignVertical="top"
-                value={source}
-              />
-              <Text style={styles.counter}>{source.length} / 800</Text>
-            </View>
-          </View>
-
-          <View style={[styles.card, styles.toneCard]}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>{t.tone}</Text>
-              <Text style={styles.cardMeta}>
-                {settings.politeness} · {settings.warmth} · {settings.directness}
+                {message || (
+                  status === 'translating' ? t.translating :
+                  status === 'complete' ? t.complete :
+                  t.ready
+                )}
               </Text>
             </View>
-            <ToneSlider
-              label={t.politeness}
-              onChange={value => updateSetting('politeness', value)}
-              onComplete={value => {
-                const next = {...settings, politeness: value};
-                setSettings(next);
-                saveQuietly(next);
-              }}
-              value={settings.politeness}
-            />
-            <ToneSlider
-              label={t.warmth}
-              onChange={value => updateSetting('warmth', value)}
-              onComplete={value => {
-                const next = {...settings, warmth: value};
-                setSettings(next);
-                saveQuietly(next);
-              }}
-              value={settings.warmth}
-            />
-            <ToneSlider
-              label={t.directness}
-              onChange={value => updateSetting('directness', value)}
-              onComplete={value => {
-                const next = {...settings, directness: value};
-                setSettings(next);
-                saveQuietly(next);
-              }}
-              value={settings.directness}
-            />
-          </View>
 
-          <Pressable
-            accessibilityState={{disabled: busy}}
-            disabled={busy}
-            onPress={translate}
-            style={({pressed}) => [
-              styles.primary,
-              pressed && styles.primaryPressed,
-              busy && styles.disabled,
-            ]}
-            testID="translate-button">
-            <Text style={styles.primaryText}>
-              {busy ? t.translating : t.generate}
-            </Text>
-            <View style={styles.primaryIcon}>
-              {busy
-                ? <ActivityIndicator color="#FFFFFF" size="small" />
-                : <Text style={styles.primaryArrow}>→</Text>}
-            </View>
-          </Pressable>
-
-          <View style={[
-            styles.status,
-            status === 'error' && styles.statusError,
-          ]}>
-            <View style={[
-              styles.statusDot,
-              status === 'error' && styles.statusDotError,
-            ]} />
-            <Text style={[
-              styles.statusText,
-              status === 'error' && styles.statusTextError,
-            ]}>
-              {message || (
-                status === 'translating' ? t.translating :
-                status === 'complete' ? t.complete :
-                t.ready
-              )}
-            </Text>
-          </View>
-
-          {result && (
-            <View style={[styles.card, styles.resultCard]}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>{t.result}</Text>
-                <View style={styles.successBadge}><Text style={styles.successText}>✓</Text></View>
-              </View>
-              {result.candidates.map((candidate, index) => (
-                <Pressable
-                  accessibilityRole="radio"
-                  accessibilityState={{checked: selectedCandidate === index}}
-                  key={`${candidate.text}-${index}`}
-                  onPress={() => setSelectedCandidate(index)}
-                  style={[
-                    styles.candidate,
-                    selectedCandidate === index && styles.candidateSelected,
-                  ]}>
-                  <View style={[
-                    styles.radio,
-                    selectedCandidate === index && styles.radioSelected,
-                  ]} />
-                  <View style={styles.candidateCopy}>
-                    <Text style={styles.candidateText}>{candidate.text}</Text>
-                    <Text style={styles.candidateLabel}>
-                      {index === 0 ? t.recommended : candidate.label || t.alternative}
+            {result && (
+              <View style={[styles.card, styles.resultCard]}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardTitle}>{t.result}</Text>
+                  <View style={styles.successBadge}><Text style={styles.successText}>✓</Text></View>
+                </View>
+                {result.candidates.map((candidate, index) => (
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{checked: selectedCandidate === index}}
+                    key={`${candidate.text}-${index}`}
+                    onPress={() => setSelectedCandidate(index)}
+                    style={[
+                      styles.candidate,
+                      selectedCandidate === index && styles.candidateSelected,
+                    ]}>
+                    <View style={[
+                      styles.radio,
+                      selectedCandidate === index && styles.radioSelected,
+                    ]} />
+                    <View style={styles.candidateCopy}>
+                      <Text style={styles.candidateText}>{candidate.text}</Text>
+                      <Text style={styles.candidateLabel}>
+                        {index === 0 ? t.recommended : candidate.label || t.alternative}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+                <Text style={styles.resultLabel}>{t.backTranslation}</Text>
+                <Text style={styles.resultDetail}>
+                  {result.backTranslation || t.notAvailable}
+                </Text>
+                {result.warnings.length > 0 && (
+                  <>
+                    <Text style={styles.resultLabel}>{t.warnings}</Text>
+                    <Text style={[styles.resultDetail, styles.warning]}>
+                      {result.warnings.join('\n')}
                     </Text>
-                  </View>
-                </Pressable>
-              ))}
-              <Text style={styles.resultLabel}>{t.backTranslation}</Text>
-              <Text style={styles.resultDetail}>
-                {result.backTranslation || t.notAvailable}
-              </Text>
-              {result.warnings.length > 0 && (
-                <>
-                  <Text style={styles.resultLabel}>{t.warnings}</Text>
-                  <Text style={[styles.resultDetail, styles.warning]}>
-                    {result.warnings.join('\n')}
-                  </Text>
-                </>
-              )}
-              <View style={styles.actionRow}>
-                <Pressable
-                  onPress={() => {
-                    ToneIme.copyText(selectedText);
-                    setMessage(t.copied);
-                    setStatus('complete');
-                  }}
-                  style={({pressed}) => [styles.secondary, pressed && styles.pressed]}>
-                  <Text style={styles.secondaryText}>{t.copy}</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => ToneIme.shareText(selectedText)}
-                  style={({pressed}) => [styles.secondary, pressed && styles.pressed]}>
-                  <Text style={styles.secondaryText}>{t.share}</Text>
-                </Pressable>
-              </View>
-              {canReturnToApp && (
-                <Pressable
-                  onPress={() => void ToneIme.returnToApp(selectedText)}
-                  style={({pressed}) => [
-                    styles.returnButton,
-                    pressed && styles.primaryPressed,
-                  ]}>
-                  <Text style={styles.returnText}>{t.returnToApp}</Text>
-                </Pressable>
-              )}
-            </View>
-          )}
-
-          <View style={styles.safeNote}>
-            <Text style={styles.safeIcon}>⌁</Text>
-            <Text style={styles.safeText}>{t.safe}</Text>
-          </View>
-
-          <Pressable
-            onPress={openOverlay}
-            style={({pressed}) => [styles.overlayButton, pressed && styles.pressed]}
-            testID="overlay-settings-button">
-            <View style={styles.overlayButtonIcon}><Text style={styles.overlayButtonLetter}>T</Text></View>
-            <View style={styles.overlayButtonCopy}>
-              <Text style={styles.overlayButtonTitle}>{t.overlayButton}</Text>
-              <Text style={styles.overlayButtonHint}>{t.privacy}</Text>
-            </View>
-            <Text style={styles.overlayButtonArrow}>›</Text>
-          </Pressable>
-
-          <View style={[styles.card, styles.overlayDisplayCard]}>
-            <Text style={styles.cardTitle}>{t.overlayDisplay}</Text>
-            <RangeSlider
-              label={t.overlayOpacity}
-              max={100}
-              min={35}
-              onChange={value => updateSetting('overlayOpacity', value)}
-              onComplete={value => {
-                const next = {...settings, overlayOpacity: value};
-                setSettings(next);
-                saveQuietly(next);
-              }}
-              value={settings.overlayOpacity}
-              valueLabel={`${settings.overlayOpacity}%`}
-            />
-            <Text style={styles.overlayDisplayHint}>{t.overlaySizeHint}</Text>
-          </View>
-
-          <View style={[styles.card, styles.apiCard]}>
-            <Pressable
-              accessibilityState={{expanded: apiExpanded}}
-              onPress={() => setApiExpanded(value => !value)}
-              style={styles.apiHeader}>
-              <Text style={styles.cardTitle}>{t.apiSettings}</Text>
-              <Text style={styles.apiToggle}>{apiExpanded ? '−' : '+'}</Text>
-            </Pressable>
-            {apiExpanded && (
-              <View style={styles.apiBody}>
-                <SelectField
-                  label={t.provider}
-                  onChange={changeProvider}
-                  options={providerOptions}
-                  testID="provider"
-                  value={settings.provider}
-                />
-                <Text style={styles.providerHint}>{t.providerHint}</Text>
-                <Text style={styles.fieldLabel}>{t.baseUrl}</Text>
-                <TextInput
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                  onBlur={() => blurInput(baseUrlInput.current)}
-                  onChangeText={value => updateSetting('baseUrl', value)}
-                  onFocus={() => focusInput(baseUrlInput.current)}
-                  placeholder={providerPresets[settings.provider].baseUrl}
-                  placeholderTextColor="#A0A1AF"
-                  ref={baseUrlInput}
-                  style={styles.textField}
-                  value={settings.baseUrl}
-                />
-                <Text style={styles.fieldLabel}>{t.model}</Text>
-                <TextInput
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  onBlur={() => blurInput(modelInput.current)}
-                  onChangeText={value => updateSetting('model', value)}
-                  onFocus={() => focusInput(modelInput.current)}
-                  placeholder={providerPresets[settings.provider].model}
-                  placeholderTextColor="#A0A1AF"
-                  ref={modelInput}
-                  style={styles.textField}
-                  value={settings.model}
-                />
-                <Text style={styles.fieldLabel}>{t.apiKey}</Text>
-                <TextInput
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  onBlur={() => blurInput(apiKeyInput.current)}
-                  onChangeText={value => {
-                    setApiKey(value);
-                    setApiKeyChanged(true);
-                  }}
-                  onFocus={() => focusInput(apiKeyInput.current)}
-                  placeholder={hasApiKey && !apiKeyChanged ? t.savedKey : t.apiKeyHint}
-                  placeholderTextColor="#A0A1AF"
-                  ref={apiKeyInput}
-                  secureTextEntry
-                  style={styles.textField}
-                  value={apiKey}
-                />
-                <Pressable
-                  onPress={saveApiSettings}
-                  style={({pressed}) => [styles.saveButton, pressed && styles.pressed]}>
-                  <Text style={styles.saveButtonText}>{t.save}</Text>
-                </Pressable>
+                  </>
+                )}
+                <View style={styles.actionRow}>
+                  <Pressable
+                    onPress={() => {
+                      ToneIme.copyText(selectedText);
+                      setMessage(t.copied);
+                      setStatus('complete');
+                    }}
+                    style={({pressed}) => [styles.secondary, pressed && styles.pressed]}>
+                    <Text style={styles.secondaryText}>{t.copy}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => ToneIme.shareText(selectedText)}
+                    style={({pressed}) => [styles.secondary, pressed && styles.pressed]}>
+                    <Text style={styles.secondaryText}>{t.share}</Text>
+                  </Pressable>
+                </View>
+                {canReturnToApp && (
+                  <Pressable
+                    onPress={() => void ToneIme.returnToApp(selectedText)}
+                    style={({pressed}) => [
+                      styles.returnButton,
+                      pressed && styles.primaryPressed,
+                    ]}>
+                    <Text style={styles.returnText}>{t.returnToApp}</Text>
+                  </Pressable>
+                )}
               </View>
             )}
+
+            <View style={styles.safeNote}>
+              <Text style={styles.safeIcon}>⌁</Text>
+              <Text style={styles.safeText}>{t.safe}</Text>
+            </View>
+
+            <Pressable
+              onPress={openOverlay}
+              style={({pressed}) => [styles.overlayButton, pressed && styles.pressed]}
+              testID="overlay-settings-button">
+              <View style={styles.overlayButtonIcon}><Text style={styles.overlayButtonLetter}>T</Text></View>
+              <View style={styles.overlayButtonCopy}>
+                <Text style={styles.overlayButtonTitle}>{t.overlayButton}</Text>
+                <Text style={styles.overlayButtonHint}>{t.privacy}</Text>
+              </View>
+              <Text style={styles.overlayButtonArrow}>›</Text>
+            </Pressable>
+
+            <View style={[styles.card, styles.overlayDisplayCard]}>
+              <Text style={styles.cardTitle}>{t.overlayDisplay}</Text>
+              <RangeSlider
+                label={t.overlayOpacity}
+                max={100}
+                min={35}
+                onChange={value => updateSetting('overlayOpacity', value)}
+                onComplete={value => {
+                  const next = {...settings, overlayOpacity: value};
+                  setSettings(next);
+                  saveQuietly(next);
+                }}
+                value={settings.overlayOpacity}
+                valueLabel={`${settings.overlayOpacity}%`}
+              />
+              <Text style={styles.overlayDisplayHint}>{t.overlaySizeHint}</Text>
+            </View>
+
+            <View style={[styles.card, styles.apiCard]}>
+              <Pressable
+                accessibilityState={{expanded: apiExpanded}}
+                onPress={() => setApiExpanded(value => !value)}
+                style={styles.apiHeader}>
+                <Text style={styles.cardTitle}>{t.apiSettings}</Text>
+                <Text style={styles.apiToggle}>{apiExpanded ? '−' : '+'}</Text>
+              </Pressable>
+              {apiExpanded && (
+                <View style={styles.apiBody}>
+                  <SelectField
+                    label={t.provider}
+                    onChange={changeProvider}
+                    options={providerOptions}
+                    testID="provider"
+                    value={settings.provider}
+                  />
+                  <Text style={styles.providerHint}>{t.providerHint}</Text>
+                  <Text style={styles.fieldLabel}>{t.baseUrl}</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                    onBlur={() => blurInput(baseUrlInput.current)}
+                    onChangeText={value => updateSetting('baseUrl', value)}
+                    onFocus={() => focusInput(baseUrlInput.current)}
+                    placeholder={providerPresets[settings.provider].baseUrl}
+                    placeholderTextColor={colors.muted}
+                    selectionColor={colors.selection}
+                    cursorColor={colors.accent}
+                    ref={baseUrlInput}
+                    style={styles.textField}
+                    value={settings.baseUrl}
+                  />
+                  <Text style={styles.fieldLabel}>{t.model}</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    onBlur={() => blurInput(modelInput.current)}
+                    onChangeText={value => updateSetting('model', value)}
+                    onFocus={() => focusInput(modelInput.current)}
+                    placeholder={providerPresets[settings.provider].model}
+                    placeholderTextColor={colors.muted}
+                    selectionColor={colors.selection}
+                    cursorColor={colors.accent}
+                    ref={modelInput}
+                    style={styles.textField}
+                    value={settings.model}
+                  />
+                  <Text style={styles.fieldLabel}>{t.apiKey}</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    onBlur={() => blurInput(apiKeyInput.current)}
+                    onChangeText={value => {
+                      setApiKey(value);
+                      setApiKeyChanged(true);
+                    }}
+                    onFocus={() => focusInput(apiKeyInput.current)}
+                    placeholder={hasApiKey && !apiKeyChanged ? t.savedKey : t.apiKeyHint}
+                    placeholderTextColor={colors.muted}
+                    selectionColor={colors.selection}
+                    cursorColor={colors.accent}
+                    ref={apiKeyInput}
+                    secureTextEntry
+                    style={styles.textField}
+                    value={apiKey}
+                  />
+                  <Pressable
+                    onPress={saveApiSettings}
+                    style={({pressed}) => [styles.saveButton, pressed && styles.pressed]}>
+                    <Text style={styles.saveButtonText}>{t.save}</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+    </ThemeStyles.Provider>
   );
 }
 
-const colors = {
-  background: '#F7F7FA',
-  surface: '#FFFFFF',
-  ink: '#17182B',
-  muted: '#73758B',
-  line: '#E4E3ED',
-  accent: '#635BDF',
-  accentDark: '#4C45C6',
-  accentSoft: '#EEECFF',
-  success: '#18A77A',
-  successSoft: '#DDF6ED',
-  warning: '#9A3412',
-};
+function createStyles(colors: ThemeColors) {
+  const shadow = {
+    elevation: 2,
+    shadowColor: colors.shadow,
+    shadowOffset: {width: 0, height: 7},
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+  };
 
-const shadow = {
-  elevation: 2,
-  shadowColor: '#2A284B',
-  shadowOffset: {width: 0, height: 7},
-  shadowOpacity: 0.06,
-  shadowRadius: 18,
-};
-
-const styles = StyleSheet.create({
-  app: {backgroundColor: colors.background, flex: 1},
-  header: {
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderBottomColor: '#E9E8F0',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    minHeight: HEADER_HEIGHT,
-    paddingHorizontal: 18,
-    paddingTop: StatusBar.currentHeight ?? 0,
-  },
-  brand: {alignItems: 'center', flex: 1, flexDirection: 'row'},
-  brandMark: {
-    alignItems: 'center',
-    backgroundColor: colors.accent,
-    borderRadius: 12,
-    height: 38,
-    justifyContent: 'center',
-    width: 38,
-  },
-  brandLetter: {color: '#FFFFFF', fontSize: 17, fontWeight: '900'},
-  brandCopy: {flex: 1, marginLeft: 10},
-  brandName: {color: colors.ink, fontSize: 16, fontWeight: '800'},
-  serviceStatus: {alignItems: 'center', flexDirection: 'row', marginTop: 3},
-  statusDot: {
-    backgroundColor: colors.success,
-    borderRadius: 4,
-    height: 7,
-    marginRight: 6,
-    width: 7,
-  },
-  statusDotOff: {backgroundColor: '#B0B1BE'},
-  serviceStatusText: {color: colors.muted, flexShrink: 1, fontSize: 10},
-  languageTabs: {
-    backgroundColor: '#EFEFF5',
-    borderRadius: 12,
-    flexDirection: 'row',
-    padding: 3,
-  },
-  languageTab: {
-    alignItems: 'center',
-    borderRadius: 9,
-    height: 34,
-    justifyContent: 'center',
-    minWidth: 38,
-    paddingHorizontal: 7,
-  },
-  languageTabActive: {backgroundColor: '#FFFFFF', elevation: 1},
-  languageTabText: {color: '#77798E', fontSize: 11, fontWeight: '800'},
-  languageTabTextActive: {color: colors.accent},
-  content: {paddingBottom: 36, paddingHorizontal: 16, paddingTop: 23},
-  contentInner: {alignSelf: 'center', maxWidth: 620, width: '100%'},
-  kicker: {
-    color: colors.accent,
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.4,
-  },
-  title: {
-    color: colors.ink,
-    fontSize: 27,
-    fontWeight: '800',
-    letterSpacing: -0.7,
-    marginTop: 7,
-  },
-  subtitle: {
-    color: colors.muted,
-    fontSize: 13,
-    lineHeight: 20,
-    marginBottom: 18,
-    marginTop: 7,
-  },
-  card: {
-    ...shadow,
-    backgroundColor: colors.surface,
-    borderColor: '#E6E5EE',
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: 17,
-  },
-  languageRow: {alignItems: 'flex-end', flexDirection: 'row'},
-  languageField: {flex: 1, minWidth: 0},
-  swap: {
-    alignItems: 'center',
-    backgroundColor: colors.accentSoft,
-    borderRadius: 14,
-    height: 44,
-    justifyContent: 'center',
-    marginHorizontal: 8,
-    width: 44,
-  },
-  swapText: {color: colors.accent, fontSize: 20, fontWeight: '900'},
-  contextRow: {flexDirection: 'row', marginTop: 14},
-  contextField: {flex: 1, minWidth: 0},
-  field: {flex: 1},
-  fieldLabel: {
-    color: colors.muted,
-    fontSize: 11,
-    fontWeight: '700',
-    marginBottom: 7,
-  },
-  select: {
-    alignItems: 'center',
-    backgroundColor: '#F9F9FB',
-    borderColor: '#E2E1EA',
-    borderRadius: 13,
-    borderWidth: 1,
-    flexDirection: 'row',
-    height: 46,
-    justifyContent: 'space-between',
-    marginRight: 5,
-    paddingHorizontal: 12,
-  },
-  selectText: {color: '#343548', flex: 1, fontSize: 13, fontWeight: '700'},
-  chevron: {color: colors.accent, fontSize: 16, marginLeft: 4},
-  inputLabel: {marginTop: 16},
-  inputShell: {position: 'relative'},
-  sourceInput: {
-    backgroundColor: '#FBFBFD',
-    borderColor: '#E2E1EA',
-    borderRadius: 15,
-    borderWidth: 1,
-    color: '#2E2F42',
-    fontSize: 14,
-    lineHeight: 21,
-    minHeight: 112,
-    paddingBottom: 29,
-    paddingHorizontal: 13,
-    paddingTop: 12,
-  },
-  counter: {
-    bottom: 9,
-    color: '#A0A1AF',
-    fontSize: 10,
-    position: 'absolute',
-    right: 12,
-  },
-  toneCard: {marginTop: 13, paddingBottom: 12},
-  cardHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 11,
-  },
-  cardTitle: {color: colors.ink, fontSize: 14, fontWeight: '800'},
-  cardMeta: {color: '#8B8D9E', fontSize: 10, fontWeight: '700'},
-  rangeRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    minHeight: 38,
-  },
-  rangeLabel: {color: '#686A7C', fontSize: 11, fontWeight: '700', width: 54},
-  rangeTouch: {flex: 1, height: 38, justifyContent: 'center', paddingHorizontal: 8},
-  rangeTrack: {backgroundColor: '#DEDEE8', borderRadius: 2, height: 4},
-  rangeFill: {
-    backgroundColor: colors.accent,
-    borderRadius: 2,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-    top: 0,
-  },
-  rangeThumb: {
-    backgroundColor: colors.accent,
-    borderColor: '#FFFFFF',
-    borderRadius: 9,
-    borderWidth: 3,
-    height: 18,
-    marginLeft: -9,
-    marginTop: -7,
-    position: 'absolute',
-    width: 18,
-  },
-  rangeValue: {
-    backgroundColor: colors.accentSoft,
-    borderRadius: 8,
-    color: colors.accent,
-    fontSize: 11,
-    fontWeight: '800',
-    lineHeight: 24,
-    overflow: 'hidden',
-    textAlign: 'center',
-    width: 25,
-  },
-  rangeValueWide: {width: 42},
-  primary: {
-    alignItems: 'center',
-    backgroundColor: colors.accent,
-    borderRadius: 17,
-    elevation: 4,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 13,
-    minHeight: 56,
-    paddingLeft: 18,
-    paddingRight: 10,
-  },
-  primaryPressed: {backgroundColor: colors.accentDark, transform: [{translateY: 1}]},
-  primaryText: {color: '#FFFFFF', flex: 1, fontSize: 14, fontWeight: '800'},
-  primaryIcon: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderRadius: 12,
-    height: 38,
-    justifyContent: 'center',
-    width: 38,
-  },
-  primaryArrow: {color: '#FFFFFF', fontSize: 18, fontWeight: '800'},
-  disabled: {opacity: 0.7},
-  status: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: '#EDF8F4',
-    borderRadius: 11,
-    flexDirection: 'row',
-    marginTop: 10,
-    minHeight: 34,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-  },
-  statusError: {backgroundColor: '#FFF1ED'},
-  statusDotError: {backgroundColor: colors.warning},
-  statusText: {color: colors.success, flexShrink: 1, fontSize: 11, fontWeight: '700'},
-  statusTextError: {color: colors.warning},
-  resultCard: {marginTop: 13},
-  successBadge: {
-    alignItems: 'center',
-    backgroundColor: colors.successSoft,
-    borderRadius: 8,
-    height: 24,
-    justifyContent: 'center',
-    width: 24,
-  },
-  successText: {color: colors.success, fontSize: 12, fontWeight: '900'},
-  candidate: {
-    alignItems: 'flex-start',
-    backgroundColor: '#FAFAFD',
-    borderColor: '#E5E4ED',
-    borderRadius: 15,
-    borderWidth: 1,
-    flexDirection: 'row',
-    marginTop: 8,
-    minHeight: 76,
-    padding: 12,
-  },
-  candidateSelected: {backgroundColor: '#F3F1FF', borderColor: '#9C96EC'},
-  radio: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#C9C8D5',
-    borderRadius: 9,
-    borderWidth: 2,
-    height: 18,
-    marginRight: 10,
-    marginTop: 1,
-    width: 18,
-  },
-  radioSelected: {borderColor: colors.accent, borderWidth: 5},
-  candidateCopy: {flex: 1},
-  candidateText: {color: '#393A4D', fontSize: 13, fontWeight: '700', lineHeight: 20},
-  candidateLabel: {color: colors.accent, fontSize: 10, fontWeight: '800', marginTop: 6},
-  resultLabel: {
-    color: colors.muted,
-    fontSize: 10,
-    fontWeight: '800',
-    marginTop: 13,
-  },
-  resultDetail: {color: '#868797', fontSize: 11, lineHeight: 17, marginTop: 4},
-  warning: {color: colors.warning},
-  actionRow: {flexDirection: 'row', marginTop: 14},
-  secondary: {
-    alignItems: 'center',
-    backgroundColor: colors.accentSoft,
-    borderRadius: 13,
-    flex: 1,
-    justifyContent: 'center',
-    marginRight: 7,
-    minHeight: 46,
-    paddingHorizontal: 8,
-  },
-  secondaryText: {color: colors.accent, fontSize: 11, fontWeight: '800', textAlign: 'center'},
-  returnButton: {
-    alignItems: 'center',
-    backgroundColor: colors.accent,
-    borderRadius: 13,
-    justifyContent: 'center',
-    marginTop: 8,
-    minHeight: 48,
-    paddingHorizontal: 12,
-  },
-  returnText: {color: '#FFFFFF', fontSize: 12, fontWeight: '800'},
-  safeNote: {alignItems: 'flex-start', flexDirection: 'row', marginHorizontal: 5, marginVertical: 13},
-  safeIcon: {color: colors.success, fontSize: 17, lineHeight: 18, marginRight: 7},
-  safeText: {color: '#858696', flex: 1, fontSize: 10, lineHeight: 16},
-  overlayButton: {
-    ...shadow,
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E6E5EE',
-    borderRadius: 19,
-    borderWidth: 1,
-    flexDirection: 'row',
-    marginBottom: 13,
-    minHeight: 88,
-    padding: 13,
-  },
-  overlayButtonIcon: {
-    alignItems: 'center',
-    backgroundColor: colors.accent,
-    borderRadius: 12,
-    height: 42,
-    justifyContent: 'center',
-    width: 42,
-  },
-  overlayButtonLetter: {color: '#FFFFFF', fontSize: 16, fontWeight: '900'},
-  overlayButtonCopy: {flex: 1, marginHorizontal: 11},
-  overlayButtonTitle: {color: colors.ink, fontSize: 13, fontWeight: '800'},
-  overlayButtonHint: {color: colors.muted, fontSize: 9, lineHeight: 14, marginTop: 5},
-  overlayButtonArrow: {color: colors.accent, fontSize: 25},
-  overlayDisplayCard: {marginBottom: 13, paddingBottom: 12},
-  overlayDisplayHint: {color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 5},
-  apiCard: {overflow: 'hidden', padding: 0},
-  apiHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    minHeight: 58,
-    paddingHorizontal: 17,
-  },
-  apiToggle: {color: colors.accent, fontSize: 21, fontWeight: '500'},
-  apiBody: {paddingBottom: 17, paddingHorizontal: 17},
-  providerHint: {
-    color: colors.muted,
-    fontSize: 10,
-    lineHeight: 15,
-    marginBottom: 12,
-    marginTop: 5,
-  },
-  textField: {
-    backgroundColor: '#FAFAFD',
-    borderColor: '#E2E1EA',
-    borderRadius: 13,
-    borderWidth: 1,
-    color: colors.ink,
-    fontSize: 12,
-    height: 45,
-    marginBottom: 12,
-    paddingHorizontal: 12,
-  },
-  saveButton: {
-    alignItems: 'center',
-    backgroundColor: colors.accentSoft,
-    borderRadius: 13,
-    justifyContent: 'center',
-    minHeight: 46,
-  },
-  saveButtonText: {color: colors.accent, fontSize: 12, fontWeight: '800'},
-  pressed: {opacity: 0.72},
-  modalBackdrop: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(23,24,43,0.42)',
-    flex: 1,
-    justifyContent: 'center',
-    padding: 24,
-  },
-  optionSheet: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    elevation: 10,
-    maxWidth: 420,
-    padding: 12,
-    width: '100%',
-  },
-  optionHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    minHeight: 42,
-    paddingHorizontal: 7,
-  },
-  optionTitle: {color: colors.ink, fontSize: 15, fontWeight: '800'},
-  optionClose: {color: colors.muted, fontSize: 24, paddingHorizontal: 8},
-  option: {
-    alignItems: 'center',
-    borderRadius: 13,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    minHeight: 48,
-    paddingHorizontal: 13,
-  },
-  optionSelected: {backgroundColor: colors.accentSoft},
-  optionText: {color: '#4D4E61', fontSize: 14, fontWeight: '600'},
-  optionTextSelected: {color: colors.accent, fontWeight: '800'},
-  optionCheck: {color: colors.accent, fontSize: 14, fontWeight: '900'},
-});
+  return StyleSheet.create({
+    appearanceCard: {marginBottom: 13, padding: 12},
+    themeTabs: {backgroundColor: colors.surfaceSoft, borderRadius: 12, flexDirection: 'row', marginTop: 10, padding: 3},
+    themeOption: {alignItems: 'center', borderColor: 'transparent', borderRadius: 10, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 42, paddingHorizontal: 5},
+    themeOptionActive: {backgroundColor: colors.accentSoft, borderColor: colors.accent},
+    themeOptionText: {color: colors.muted, fontSize: 12, fontWeight: '700', textAlign: 'center'},
+    themeOptionTextActive: {color: colors.accent},
+    app: {backgroundColor: colors.background, flex: 1},
+    header: {
+      alignItems: 'center',
+      backgroundColor: colors.background,
+      borderBottomColor: colors.line,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      minHeight: HEADER_HEIGHT,
+      paddingHorizontal: 18,
+      paddingTop: StatusBar.currentHeight ?? 0,
+    },
+    brand: {alignItems: 'center', flex: 1, flexDirection: 'row'},
+    brandMark: {
+      alignItems: 'center',
+      backgroundColor: colors.accentFill,
+      borderRadius: 12,
+      height: 38,
+      justifyContent: 'center',
+      width: 38,
+    },
+    brandLetter: {color: colors.onAccent, fontSize: 17, fontWeight: '900'},
+    brandCopy: {flex: 1, marginLeft: 10},
+    brandName: {color: colors.ink, fontSize: 16, fontWeight: '800'},
+    serviceStatus: {alignItems: 'center', flexDirection: 'row', marginTop: 3},
+    statusDot: {
+      backgroundColor: colors.success,
+      borderRadius: 4,
+      height: 7,
+      marginRight: 6,
+      width: 7,
+    },
+    statusDotOff: {backgroundColor: colors.muted},
+    serviceStatusText: {color: colors.muted, flexShrink: 1, fontSize: 10},
+    languageTabs: {
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 12,
+      flexDirection: 'row',
+      padding: 3,
+    },
+    languageTab: {
+      alignItems: 'center',
+      borderRadius: 9,
+      height: 34,
+      justifyContent: 'center',
+      minWidth: 38,
+      paddingHorizontal: 7,
+    },
+    languageTabActive: {backgroundColor: colors.surface, elevation: 1},
+    languageTabText: {color: colors.muted, fontSize: 11, fontWeight: '800'},
+    languageTabTextActive: {color: colors.accent},
+    content: {paddingBottom: 36, paddingHorizontal: 16, paddingTop: 23},
+    contentInner: {alignSelf: 'center', maxWidth: 620, width: '100%'},
+    kicker: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: '900',
+      letterSpacing: 1.4,
+    },
+    title: {
+      color: colors.ink,
+      fontSize: 27,
+      fontWeight: '800',
+      letterSpacing: -0.7,
+      marginTop: 7,
+    },
+    subtitle: {
+      color: colors.muted,
+      fontSize: 13,
+      lineHeight: 20,
+      marginBottom: 18,
+      marginTop: 7,
+    },
+    card: {
+      ...shadow,
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderRadius: 22,
+      borderWidth: 1,
+      padding: 17,
+    },
+    languageRow: {alignItems: 'flex-end', flexDirection: 'row'},
+    languageField: {flex: 1, minWidth: 0},
+    swap: {
+      alignItems: 'center',
+      backgroundColor: colors.accentSoft,
+      borderRadius: 14,
+      height: 44,
+      justifyContent: 'center',
+      marginHorizontal: 8,
+      width: 44,
+    },
+    swapText: {color: colors.accent, fontSize: 20, fontWeight: '900'},
+    contextRow: {flexDirection: 'row', marginTop: 14},
+    contextField: {flex: 1, minWidth: 0},
+    field: {flex: 1},
+    fieldLabel: {
+      color: colors.muted,
+      fontSize: 11,
+      fontWeight: '700',
+      marginBottom: 7,
+    },
+    select: {
+      alignItems: 'center',
+      backgroundColor: colors.surfaceSoft,
+      borderColor: colors.controlBorder,
+      borderRadius: 13,
+      borderWidth: 1,
+      flexDirection: 'row',
+      height: 46,
+      justifyContent: 'space-between',
+      marginRight: 5,
+      paddingHorizontal: 12,
+    },
+    selectText: {color: colors.ink, flex: 1, fontSize: 13, fontWeight: '700'},
+    chevron: {color: colors.accent, fontSize: 16, marginLeft: 4},
+    inputLabel: {marginTop: 16},
+    inputShell: {position: 'relative'},
+    sourceInput: {
+      backgroundColor: colors.surfaceSoft,
+      borderColor: colors.controlBorder,
+      borderRadius: 15,
+      borderWidth: 1,
+      color: colors.ink,
+      fontSize: 14,
+      lineHeight: 21,
+      minHeight: 112,
+      paddingBottom: 29,
+      paddingHorizontal: 13,
+      paddingTop: 12,
+    },
+    counter: {
+      bottom: 9,
+      color: colors.muted,
+      fontSize: 10,
+      position: 'absolute',
+      right: 12,
+    },
+    toneCard: {marginTop: 13, paddingBottom: 12},
+    cardHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 11,
+    },
+    cardTitle: {color: colors.ink, fontSize: 14, fontWeight: '800'},
+    cardMeta: {color: colors.muted, fontSize: 10, fontWeight: '700'},
+    rangeRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      minHeight: 38,
+    },
+    rangeLabel: {color: colors.muted, fontSize: 11, fontWeight: '700', width: 76},
+    rangeTouch: {flex: 1, height: 38, justifyContent: 'center', paddingHorizontal: 8},
+    rangeTrack: {backgroundColor: colors.controlBorder, borderRadius: 2, height: 4},
+    rangeFill: {
+      backgroundColor: colors.accentFill,
+      borderRadius: 2,
+      bottom: 0,
+      left: 0,
+      position: 'absolute',
+      top: 0,
+    },
+    rangeThumb: {
+      backgroundColor: colors.accentFill,
+      borderColor: colors.surface,
+      borderRadius: 9,
+      borderWidth: 3,
+      height: 18,
+      marginLeft: -9,
+      marginTop: -7,
+      position: 'absolute',
+      width: 18,
+    },
+    rangeValue: {
+      backgroundColor: colors.accentSoft,
+      borderRadius: 8,
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: '800',
+      lineHeight: 24,
+      overflow: 'hidden',
+      textAlign: 'center',
+      width: 25,
+    },
+    rangeValueWide: {width: 42},
+    primary: {
+      alignItems: 'center',
+      backgroundColor: colors.accentFill,
+      borderRadius: 17,
+      elevation: 4,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 13,
+      minHeight: 56,
+      paddingLeft: 18,
+      paddingRight: 10,
+    },
+    primaryPressed: {backgroundColor: colors.accentDark, transform: [{translateY: 1}]},
+    primaryText: {color: colors.onAccent, flex: 1, fontSize: 14, fontWeight: '800'},
+    primaryIcon: {
+      alignItems: 'center',
+      backgroundColor: colors.buttonOverlay,
+      borderRadius: 12,
+      height: 38,
+      justifyContent: 'center',
+      width: 38,
+    },
+    primaryArrow: {color: colors.onAccent, fontSize: 18, fontWeight: '800'},
+    disabled: {backgroundColor: colors.disabled},
+    disabledText: {color: colors.disabledText},
+    status: {
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      backgroundColor: colors.successSoft,
+      borderRadius: 11,
+      flexDirection: 'row',
+      marginTop: 10,
+      minHeight: 34,
+      paddingHorizontal: 11,
+      paddingVertical: 7,
+    },
+    statusError: {backgroundColor: colors.warningSoft},
+    statusDotError: {backgroundColor: colors.warning},
+    statusText: {color: colors.success, flexShrink: 1, fontSize: 11, fontWeight: '700'},
+    statusTextError: {color: colors.warning},
+    resultCard: {marginTop: 13},
+    successBadge: {
+      alignItems: 'center',
+      backgroundColor: colors.successSoft,
+      borderRadius: 8,
+      height: 24,
+      justifyContent: 'center',
+      width: 24,
+    },
+    successText: {color: colors.success, fontSize: 12, fontWeight: '900'},
+    candidate: {
+      alignItems: 'flex-start',
+      backgroundColor: colors.surfaceSoft,
+      borderColor: colors.controlBorder,
+      borderRadius: 15,
+      borderWidth: 1,
+      flexDirection: 'row',
+      marginTop: 8,
+      minHeight: 76,
+      padding: 12,
+    },
+    candidateSelected: {backgroundColor: colors.accentSoft, borderColor: colors.accent},
+    radio: {
+      backgroundColor: colors.surface,
+      borderColor: colors.controlBorder,
+      borderRadius: 9,
+      borderWidth: 2,
+      height: 18,
+      marginRight: 10,
+      marginTop: 1,
+      width: 18,
+    },
+    radioSelected: {borderColor: colors.accent, borderWidth: 5},
+    candidateCopy: {flex: 1},
+    candidateText: {color: colors.ink, fontSize: 13, fontWeight: '700', lineHeight: 20},
+    candidateLabel: {color: colors.accent, fontSize: 10, fontWeight: '800', marginTop: 6},
+    resultLabel: {
+      color: colors.muted,
+      fontSize: 10,
+      fontWeight: '800',
+      marginTop: 13,
+    },
+    resultDetail: {color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 4},
+    warning: {color: colors.warning},
+    actionRow: {flexDirection: 'row', marginTop: 14},
+    secondary: {
+      alignItems: 'center',
+      backgroundColor: colors.accentSoft,
+      borderRadius: 13,
+      flex: 1,
+      justifyContent: 'center',
+      marginRight: 7,
+      minHeight: 46,
+      paddingHorizontal: 8,
+    },
+    secondaryText: {color: colors.accent, fontSize: 11, fontWeight: '800', textAlign: 'center'},
+    returnButton: {
+      alignItems: 'center',
+      backgroundColor: colors.accentFill,
+      borderRadius: 13,
+      justifyContent: 'center',
+      marginTop: 8,
+      minHeight: 48,
+      paddingHorizontal: 12,
+    },
+    returnText: {color: colors.onAccent, fontSize: 12, fontWeight: '800'},
+    safeNote: {alignItems: 'flex-start', flexDirection: 'row', marginHorizontal: 5, marginVertical: 13},
+    safeIcon: {color: colors.success, fontSize: 17, lineHeight: 18, marginRight: 7},
+    safeText: {color: colors.muted, flex: 1, fontSize: 10, lineHeight: 16},
+    overlayButton: {
+      ...shadow,
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderRadius: 19,
+      borderWidth: 1,
+      flexDirection: 'row',
+      marginBottom: 13,
+      minHeight: 88,
+      padding: 13,
+    },
+    overlayButtonIcon: {
+      alignItems: 'center',
+      backgroundColor: colors.accentFill,
+      borderRadius: 12,
+      height: 42,
+      justifyContent: 'center',
+      width: 42,
+    },
+    overlayButtonLetter: {color: colors.onAccent, fontSize: 16, fontWeight: '900'},
+    overlayButtonCopy: {flex: 1, marginHorizontal: 11},
+    overlayButtonTitle: {color: colors.ink, fontSize: 13, fontWeight: '800'},
+    overlayButtonHint: {color: colors.muted, fontSize: 9, lineHeight: 14, marginTop: 5},
+    overlayButtonArrow: {color: colors.accent, fontSize: 25},
+    overlayDisplayCard: {marginBottom: 13, paddingBottom: 12},
+    overlayDisplayHint: {color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 5},
+    apiCard: {overflow: 'hidden', padding: 0},
+    apiHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      minHeight: 58,
+      paddingHorizontal: 17,
+    },
+    apiToggle: {color: colors.accent, fontSize: 21, fontWeight: '500'},
+    apiBody: {paddingBottom: 17, paddingHorizontal: 17},
+    providerHint: {
+      color: colors.muted,
+      fontSize: 10,
+      lineHeight: 15,
+      marginBottom: 12,
+      marginTop: 5,
+    },
+    textField: {
+      backgroundColor: colors.surfaceSoft,
+      borderColor: colors.controlBorder,
+      borderRadius: 13,
+      borderWidth: 1,
+      color: colors.ink,
+      fontSize: 12,
+      height: 45,
+      marginBottom: 12,
+      paddingHorizontal: 12,
+    },
+    saveButton: {
+      alignItems: 'center',
+      backgroundColor: colors.accentSoft,
+      borderRadius: 13,
+      justifyContent: 'center',
+      minHeight: 46,
+    },
+    saveButtonText: {color: colors.accent, fontSize: 12, fontWeight: '800'},
+    pressed: {backgroundColor: colors.pressed},
+    modalBackdrop: {
+      alignItems: 'center',
+      backgroundColor: colors.scrim,
+      flex: 1,
+      justifyContent: 'center',
+      padding: 24,
+    },
+    optionSheet: {
+      backgroundColor: colors.surface,
+      borderRadius: 22,
+      elevation: 10,
+      maxWidth: 420,
+      padding: 12,
+      width: '100%',
+    },
+    optionHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      minHeight: 42,
+      paddingHorizontal: 7,
+    },
+    optionTitle: {color: colors.ink, fontSize: 15, fontWeight: '800'},
+    optionClose: {color: colors.muted, fontSize: 24, paddingHorizontal: 8},
+    option: {
+      alignItems: 'center',
+      borderRadius: 13,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      minHeight: 48,
+      paddingHorizontal: 13,
+    },
+    optionSelected: {backgroundColor: colors.accentSoft},
+    optionText: {color: colors.ink, fontSize: 14, fontWeight: '600'},
+    optionTextSelected: {color: colors.accent, fontWeight: '800'},
+    optionCheck: {color: colors.accent, fontSize: 14, fontWeight: '900'},
+  });
+}

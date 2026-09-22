@@ -77,6 +77,10 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
+            if (AppTheme.ACTION_CHANGED.equals(action)) {
+                applyOverlayTheme();
+                return;
+            }
             if (AppSettings.ACTION_OVERLAY_HIDE.equals(action)) {
                 hideOverlayForSettings();
                 return;
@@ -199,6 +203,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         handler.post(() -> {
+            applyOverlayTheme();
             fitOverlayToDisplay(true);
             adjustOverlayForIme();
         });
@@ -225,6 +230,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     private void registerLanguageReceiver() {
         IntentFilter filter = new IntentFilter(AppSettings.ACTION_UI_LANGUAGE_CHANGED);
+        filter.addAction(AppTheme.ACTION_CHANGED);
         filter.addAction(AppSettings.ACTION_OVERLAY_HIDE);
         filter.addAction(AppSettings.ACTION_OVERLAY_SHOW);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -244,6 +250,7 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         overlay = LayoutInflater.from(localized).inflate(R.layout.overlay_window, null);
         bindViews();
         loadSettings();
+        applyOverlayTheme();
         setupListeners();
         if (manualOverlayY <= 0) {
             manualOverlayY = windowParams.y;
@@ -535,7 +542,13 @@ public final class AccessibilityOverlayService extends AccessibilityService {
         if (overlay == null) {
             return;
         }
-        overlay.setAlpha(overlayOpacity / 100f);
+        OverlayTheme.applyOpacity(overlay, overlayOpacity);
+    }
+
+    private void applyOverlayTheme() {
+        if (overlay != null) {
+            OverlayTheme.apply(overlay, AppSettings.localizedContext(this), overlayOpacity);
+        }
     }
 
     private void adjustOverlayForIme() {

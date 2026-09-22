@@ -1,11 +1,12 @@
 {
   "name": "toneime",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
     "start": "react-native start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:theme": "node --test tests/theme.test.cjs"
   },
   "dependencies": {
     "react": "19.2.3",

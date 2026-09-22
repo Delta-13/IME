@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tone_background">#111118</color>
+    <color name="tone_surface">#1C1C27</color>
+    <color name="tone_surface_soft">#252532</color>
+    <color name="tone_ink">#F2F1F7</color>
+    <color name="tone_muted">#BBB8CE</color>
+    <color name="tone_line">#454254</color>
+    <color name="tone_control_border">#8A859E</color>
+    <color name="tone_accent">#C5BDFF</color>
+    <color name="tone_accent_fill">#BBB2FF</color>
+    <color name="tone_accent_dark">#A79CEF</color>
+    <color name="tone_accent_soft">#343047</color>
+    <color name="tone_on_accent">#191329</color>
+</resources>

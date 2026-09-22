@@ -3,6 +3,7 @@ package com.toneime.android;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.view.ContextThemeWrapper;
 
 import java.util.Locale;
 
@@ -53,7 +54,9 @@ final class AppSettings {
                 new Configuration(context.getResources().getConfiguration());
         configuration.setLocale(locale);
         configuration.setLayoutDirection(locale);
-        return context.createConfigurationContext(configuration);
+        AppTheme.configure(context, configuration);
+        return new ContextThemeWrapper(
+                context.createConfigurationContext(configuration), R.style.Theme_ToneIME);
     }
 
     static void migrate(SharedPreferences preferences) {

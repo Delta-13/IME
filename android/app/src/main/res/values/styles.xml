@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.ToneIME" parent="Theme.AppCompat.Light.NoActionBar">
+    <style name="Base.Theme.ToneIME" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowBackground">@color/tone_background</item>
         <item name="android:colorAccent">@color/tone_accent</item>
         <item name="android:statusBarColor">@color/tone_background</item>
         <item name="android:navigationBarColor">@color/tone_background</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">@bool/tone_light_system_bars</item>
         <item name="android:windowActionModeOverlay">true</item>
     </style>
+    <style name="Theme.ToneIME" parent="Base.Theme.ToneIME" />
 </resources>

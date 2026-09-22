@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.ToneIME" parent="Base.Theme.ToneIME">
+        <item name="android:windowLightNavigationBar">@bool/tone_light_system_bars</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>
